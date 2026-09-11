@@ -406,7 +406,7 @@
       if(raw) list = JSON.parse(raw);
     }catch(e){}
     if(list){
-      list = list.map(s => s.logoAssetId ? s : Object.assign({}, s, {colorHex: colorForName(s.name)}));
+      list = list.map(s => s.logoDataUrl ? s : Object.assign({}, s, {colorHex: colorForName(s.name)}));
       saveSubs(list);
       return list;
     }
@@ -452,14 +452,38 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
   /** サービスのロゴ画像(アップロード済みなら)か、頭文字バッジをHTMLとして返す。
-   *  ロゴ画像は丸く切り抜かず(object-fit:contain)実際の形のまま収める。画像が404した場合は自動で頭文字に戻る。 */
+   *  ロゴ画像は丸く切り抜かず(object-fit:contain)実際の形のまま収める。画像が壊れていた場合は自動で頭文字に戻る。 */
   function badgeHTML(sub, extraClass){
     const initial = esc((sub.name.trim()[0]||"?").toUpperCase());
-    const src = sub.logoAssetId ? ("/_blob/" + sub.logoAssetId) : null;
+    const src = sub.logoDataUrl || null;
     return `<div class="badge${extraClass?(" "+extraClass):""}" style="background:${sub.colorHex}">
       <span${src?' style="display:none"':""}>${initial}</span>
       ${src ? `<img src="${src}" alt="" onerror="this.remove();this.previousElementSibling.style.display='';">` : ""}
     </div>`;
+  }
+
+  /** 画像ファイルを、端末のブラウザ内だけで完結する形で保存できるよう、小さく縮小してdata URL文字列にする。
+   *  サーバーには一切送らない(localStorageにそのまま保存できるサイズに収めるため縮小する)。 */
+  function resizeImageToDataURL(file, maxSize){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.onload = () => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("decode failed"));
+        img.onload = () => {
+          const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+          const w = Math.max(1, Math.round(img.width * scale));
+          const h = Math.max(1, Math.round(img.height * scale));
+          const canvas = document.createElement("canvas");
+          canvas.width = w; canvas.height = h;
+          canvas.getContext("2d").drawImage(img, 0, 0, w, h);
+          resolve(canvas.toDataURL("image/png"));
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   /** カレンダーのマス目に、その日の予定を各サブスクのロゴ/頭文字バッジ(極小)で表示する。
@@ -474,17 +498,6 @@
     const extraHTML = extra>0 ? `<span class="cal-mini-extra">+${extra}</span>` : "";
     return `<span class="dots">${items}${extraHTML}</span>`;
   }
-
-  /* ---------------- assets capability (ロゴ画像アップロード用、使えない環境では自動的に非表示) ---------------- */
-  let assetsApi = null;
-  (async function initAssets(){
-    try{
-      if(window.claude && window.claude.use){
-        assetsApi = await window.claude.use("assets");
-      }
-    }catch(e){}
-    if(assetsApi && view.screen === "addEdit") render();
-  })();
 
   function render(){
     if(view.screen === "home") root.innerHTML = homeHTML();
@@ -592,10 +605,10 @@
       draft = existing ? {
         _id:id, name:existing.name, priceYen:String(existing.priceYen), cycle:existing.cycle,
         anchorDate:existing.anchorDate, cancelRule:existing.cancelRule, colorHex:existing.colorHex,
-        logoAssetId:existing.logoAssetId||null
+        logoDataUrl:existing.logoDataUrl||null
       } : {
         _id:"__new__", name:"", priceYen:"", cycle:"monthly", anchorDate:toISO(startOfToday()),
-        cancelRule:"day_before", colorHex:colorForName(""), logoAssetId:null
+        cancelRule:"day_before", colorHex:colorForName(""), logoDataUrl:null
       };
     }
     const anchor = fromISO(draft.anchorDate);
@@ -618,16 +631,15 @@
           <input class="text-input" id="fName" placeholder="例: Netflix" value="${esc(draft.name)}">
         </div>
 
-        ${assetsApi ? `
         <div class="field">
           <label>ロゴ画像(任意)</label>
           <div class="logo-row">
-            <div id="logoPreviewWrap">${badgeHTML({name:draft.name, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId})}</div>
-            <button type="button" class="logo-btn" id="btnPickLogo">${draft.logoAssetId ? "画像を変更" : "画像を選択"}</button>
-            ${draft.logoAssetId ? `<button type="button" class="logo-btn logo-remove" id="btnRemoveLogo">削除</button>` : ""}
+            <div id="logoPreviewWrap">${badgeHTML({name:draft.name, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl})}</div>
+            <button type="button" class="logo-btn" id="btnPickLogo">${draft.logoDataUrl ? "画像を変更" : "画像を選択"}</button>
+            ${draft.logoDataUrl ? `<button type="button" class="logo-btn logo-remove" id="btnRemoveLogo">削除</button>` : ""}
           </div>
-          <input type="file" id="fLogo" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none">
-        </div>` : ""}
+          <input type="file" id="fLogo" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
+        </div>
 
         <div class="row-2">
           <div class="field">
@@ -1007,7 +1019,7 @@
         if(!view.id){
           draft.colorHex = colorForName(draft.name);
           const wrap = document.getElementById("logoPreviewWrap");
-          if(wrap) wrap.innerHTML = badgeHTML({name:draft.name, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId});
+          if(wrap) wrap.innerHTML = badgeHTML({name:draft.name, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl});
         }
         updateSaveButtonState();
       });
@@ -1026,32 +1038,31 @@
       const fLogo = document.getElementById("fLogo");
       if(fLogo) fLogo.addEventListener("change", async e => {
         const file = e.target.files[0];
-        if(!file || !assetsApi) return;
-        pickLogo.disabled = true; pickLogo.textContent = "アップロード中…";
+        if(!file) return;
+        pickLogo.disabled = true; pickLogo.textContent = "処理中…";
         try{
-          const result = await assetsApi.upload(file);
-          draft.logoAssetId = result.id;
+          draft.logoDataUrl = await resizeImageToDataURL(file, 128);
         }catch(err){
-          alert("画像のアップロードに失敗しました。もう一度お試しください。");
+          alert("画像の読み込みに失敗しました。もう一度お試しください。");
         }
         render();
       });
       const removeLogo = document.getElementById("btnRemoveLogo");
-      if(removeLogo) removeLogo.addEventListener("click", () => { draft.logoAssetId = null; render(); });
+      if(removeLogo) removeLogo.addEventListener("click", () => { draft.logoDataUrl = null; render(); });
       const saveBtn = document.getElementById("btnSave");
       if(saveBtn) saveBtn.addEventListener("click", () => {
         const price = parseInt(draft.priceYen,10)||0;
         if(!(draft.name.trim().length>0 && price>0)) return;
         if(view.id){
           const idx = subs.findIndex(s=>s.id===view.id);
-          subs[idx] = {id:view.id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId||null};
+          subs[idx] = {id:view.id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl||null};
           saveSubs(subs);
           recordCurrentMonth();
           const backTo = view.id;
           draft = null; view = {screen:"detail", id:backTo}; render();
         } else {
           const id = "s"+Date.now();
-          subs.push({id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex: colorForName(draft.name), logoAssetId:draft.logoAssetId||null});
+          subs.push({id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex: colorForName(draft.name), logoDataUrl:draft.logoDataUrl||null});
           saveSubs(subs);
           recordCurrentMonth();
           draft = null; view = {screen:"home", id:null}; render();
