@@ -350,19 +350,13 @@
   }
   function monthlyEquivalent(price, cycle){ return cycle === "monthly" ? price : Math.round(price/12); }
   function urgencyFor(days){ return days<=21 ? "urgent" : days<=35 ? "soon" : "later"; }
-  /** 「不定期」は請求日そのものが決まっていないので、次回請求日・解約目安日は計算せず null のままにする。
-   *  合計金額の扱いだけは年額と同じ(月割り)にする。 */
+  /** 「不定期」は、次にいつ請求されるか分かっている1回分の日付をそのまま使うだけで、
+   *  月額/年額のように自動で「1か月後・1年後」へ繰り上げていく処理はしない。
+   *  一度その日を過ぎたら、また分かり次第この日付を手動で書き換えてもらう想定。 */
   function toUiModel(sub, today){
     today = today || startOfToday();
-    if(sub.cycle === "irregular"){
-      return Object.assign({}, sub, {
-        anchor: null, nextBillingDate: null, recommendedCancelDate: null,
-        daysUntilCancel: null, monthlyEquivalentYen: monthlyEquivalent(sub.priceYen, sub.cycle),
-        urgency: null
-      });
-    }
     const anchor = fromISO(sub.anchorDate);
-    const next = nextBillingDate(anchor, sub.cycle, today);
+    const next = sub.cycle === "irregular" ? anchor : nextBillingDate(anchor, sub.cycle, today);
     const cancel = recommendedCancelDate(next, sub.cancelRule);
     const daysUntilCancel = diffDays(cancel, today);
     return Object.assign({}, sub, {
@@ -389,8 +383,13 @@
       }
     }
     list.forEach(sub => {
-      if(sub.cycle === "irregular") return; // 決まった請求日が無いので、カレンダーには出さない
       const anchor = fromISO(sub.anchorDate);
+      if(sub.cycle === "irregular"){
+        // 繰り返しではなく、指定された1回分の日付だけを見る(該当月に入っていれば表示)。
+        push(anchor, sub, "bill");
+        push(recommendedCancelDate(anchor, sub.cancelRule), sub, "cancel");
+        return;
+      }
       for(let delta=-1; delta<=1; delta++){
         const ref = addMonthsClamped(ymd(year,month,1), delta);
         const y = ref.getFullYear(), m = ref.getMonth();
@@ -607,12 +606,7 @@
     const models = subs.map(s => toUiModel(s, today));
     const monthly = models.filter(m => m.cycle === "monthly").sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
     const annual = models.filter(m => m.cycle === "yearly" || m.cycle === "irregular")
-      .sort((a,b) => {
-        if(a.cycle === "irregular" && b.cycle === "irregular") return a.name.localeCompare(b.name, "ja");
-        if(a.cycle === "irregular") return 1;
-        if(b.cycle === "irregular") return -1;
-        return a.recommendedCancelDate - b.recommendedCancelDate;
-      });
+      .sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
     const { monthlySub, annualEq, grand } = computeTotals(models);
 
     return `
@@ -649,19 +643,7 @@
               </div>
               <span class="warn">請求頻度が低く見逃し注意</span>
             </div>
-            ${annual.map(m => m.cycle === "irregular" ? `
-              <button class="annual-row" data-detail="${m.id}">
-                ${badgeHTML(m)}
-                <div class="info">
-                  <div class="name">${esc(m.name)}</div>
-                  <div class="meta">不定期・請求日は未定</div>
-                </div>
-                <div class="side">
-                  <div class="price">${formatYen(m.priceYen)}</div>
-                  <span class="pill-outline">不定期</span>
-                </div>
-              </button>
-            ` : `
+            ${annual.map(m => `
               <button class="annual-row" data-detail="${m.id}">
                 ${badgeHTML(m)}
                 <div class="info">
@@ -733,8 +715,8 @@
     }
     const isIrregular = draft.cycle === "irregular";
     const anchor = fromISO(draft.anchorDate);
-    const next = isIrregular ? null : nextBillingDate(anchor, draft.cycle);
-    const cancel = isIrregular ? null : recommendedCancelDate(next, draft.cancelRule);
+    const next = isIrregular ? anchor : nextBillingDate(anchor, draft.cycle);
+    const cancel = recommendedCancelDate(next, draft.cancelRule);
     const price = parseInt(draft.priceYen,10) || 0;
     const canSave = draft.name.trim().length>0 && price>0;
 
@@ -777,11 +759,10 @@
           </div>
         </div>
 
-        ${isIrregular ? `
-        <div class="empty-hint">不定期のサブスクは請求日が決まっていないため、次回請求日・おすすめ解約日は計算されません。金額は「年額のサブスク」の合計に月割りで含まれます。</div>
-        ` : `
+        ${isIrregular ? `<div class="empty-hint">不定期のサブスクは、次に分かっている請求日を直接入力してください。月額/年額のように自動では繰り上がらないので、請求日が変わるたびにここを更新してください。</div>` : ""}
+
         <div class="field">
-          <label>${draft.cycle==='monthly' ? "契約日(毎月の請求日)" : "契約日(毎年の請求日)"}</label>
+          <label>${draft.cycle==='monthly' ? "契約日(毎月の請求日)" : draft.cycle==='yearly' ? "契約日(毎年の請求日)" : "次回請求日"}</label>
           <button type="button" class="date-field" id="btnDate">
             <span class="dv">${formatFullJP(anchor)}</span>
             ${iconEdit()}
@@ -801,7 +782,6 @@
           <div class="preview-row"><span class="l">次回請求日</span><span class="v">${formatYMD(next)}</span></div>
           <div class="preview-row"><span class="l">おすすめ解約日</span><span class="v" style="color:var(--stamp)">${formatYMD(cancel)}</span></div>
         </div>
-        `}
 
         <button class="save-btn" id="btnSave" ${canSave?"":"disabled"}
           style="background:${canSave?"var(--accent)":"var(--ink-faint)"};color:var(--accent-ink)">保存する</button>
@@ -815,9 +795,8 @@
     if(!sub) { view = {screen:"home", id:null}; return homeHTML(); }
     const m = toUiModel(sub);
     const today = startOfToday();
-    const isIrregular = m.cycle === "irregular";
-    const total = isIrregular ? 1 : Math.max(1, diffDays(m.nextBillingDate, today));
-    const cpos = isIrregular ? 0 : Math.min(total, Math.max(0, diffDays(m.recommendedCancelDate, today)));
+    const total = Math.max(1, diffDays(m.nextBillingDate, today));
+    const cpos = Math.min(total, Math.max(0, diffDays(m.recommendedCancelDate, today)));
     const ratio = cpos/total;
 
     return `
@@ -834,17 +813,11 @@
           ${badgeHTML(m, "badge-lg")}
           <div class="sub">${esc(m.name)}</div>
           <div><span class="d-price">${formatYen(m.priceYen)}</span><span class="d-cycle"> ${m.cycle==='monthly'?"/月":m.cycle==='yearly'?"/年":"/不定期"}</span></div>
-          ${isIrregular ? "" : `<span class="rule-pill">${m.cancelRule==='day_before'?"前日ルール":"月末ルール"}</span>`}
+          <span class="rule-pill">${m.cancelRule==='day_before'?"前日ルール":"月末ルール"}</span>
         </div>
 
-        ${isIrregular ? `
         <div class="ledger">
-          <div class="ledger-row"><span class="l">請求サイクル</span><span class="v">不定期(請求日は未定)</span></div>
-        </div>
-        <div class="empty-hint" style="margin-top:16px;">請求日が決まっていないため、次回請求日やおすすめ解約日は表示されません。金額はホーム画面の「年額のサブスク」の合計に月割りで含まれています。</div>
-        ` : `
-        <div class="ledger">
-          <div class="ledger-row"><span class="l">契約日</span><span class="v">${m.cycle==='monthly' ? "毎月"+m.anchor.getDate()+"日" : "毎年"+(m.anchor.getMonth()+1)+"月"+m.anchor.getDate()+"日"}</span></div>
+          ${m.cycle==='irregular' ? "" : `<div class="ledger-row"><span class="l">契約日</span><span class="v">${m.cycle==='monthly' ? "毎月"+m.anchor.getDate()+"日" : "毎年"+(m.anchor.getMonth()+1)+"月"+m.anchor.getDate()+"日"}</span></div>`}
           <div class="ledger-row"><span class="l">次回請求日</span><span class="v">${formatFullJP(m.nextBillingDate)}</span></div>
           <div class="ledger-row"><span class="l">解約ルール</span><span class="v">${m.cancelRule==='day_before'?"請求日の前日まで":"月末までに手続き"}</span></div>
         </div>
@@ -873,7 +846,6 @@
               : "月末ルールのため、"+formatMonthDay(m.recommendedCancelDate)+"までに解約手続きを済ませると"+formatMonthDay(m.nextBillingDate)+"の請求を避けられます。"}</div>
           </div>
         </div>
-        `}
 
         <div class="d-actions">
           <button class="btn-outline" id="btnEdit2">編集する</button>
