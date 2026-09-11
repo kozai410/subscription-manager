@@ -1,0 +1,1137 @@
+<title>サブスク管理アプリ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<style>
+  :root{
+    --canvas:#e9e4d6;
+    --canvas-edge:#ddd6c2;
+    --paper:#ffffff;
+    --paper-deep:#f6f6f3;
+    --card:#ffffff;
+    --rule:#ebe9e3;
+    --ink:#1b1b17;
+    --ink-soft:#706f66;
+    --ink-faint:#a6a59b;
+    --cover:#000000;
+    --cover-deep:#111111;
+    --cover-ink:#ffffff;
+    --gold:#ffffff;
+    --stamp:#a9382b;
+    --stamp-soft:#f8e4dd;
+    --soon:#8c6a1e;
+    --soon-soft:#f4e9cf;
+    --later-soft:#f0efea;
+    --later-ink:#706f66;
+    --accent:#000000;
+    --accent-ink:#ffffff;
+    --annual-bg:#fbf6e7;
+    --annual-border:#e9daac;
+    --font-display:"Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    --font-body:"Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
+    --shell-w:448px;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--canvas);
+    background-image:radial-gradient(circle at 20% 8%, var(--canvas-edge), transparent 60%),
+                      radial-gradient(circle at 85% 92%, var(--canvas-edge), transparent 55%);
+    color:var(--ink);
+    font-family:var(--font-body);
+    display:flex;
+    justify-content:center;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  .app-frame{
+    width:100%;
+    max-width:var(--shell-w);
+    min-height:100vh;
+    background:var(--paper);
+    box-shadow:0 30px 60px -25px rgba(22,38,61,0.35), 0 0 0 1px rgba(22,38,61,0.04);
+    position:relative;
+    display:flex;
+    flex-direction:column;
+  }
+  @media (min-width:520px){
+    body{ padding:40px 16px; }
+    .app-frame{ min-height:min(860px, calc(100vh - 80px)); border-radius:18px; overflow:hidden; }
+  }
+
+  button{ font-family:inherit; }
+  .screen{ display:flex; flex-direction:column; flex:1; min-height:0; }
+  .scroll{ flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; }
+
+  /* ---------- shared: cover bar ---------- */
+  .cover-bar{
+    background:linear-gradient(180deg, var(--cover), var(--cover-deep));
+    color:var(--cover-ink);
+    padding:18px 20px 16px;
+    flex-shrink:0;
+  }
+  .cover-bar .eyebrow{
+    font-size:11px; letter-spacing:.14em; color:var(--gold); font-weight:700; margin:0 0 4px;
+    text-transform:uppercase;
+  }
+  .cover-bar h1{
+    font-family:var(--font-display); font-weight:700; font-size:21px; margin:0;
+    letter-spacing:.02em;
+  }
+  .cover-thread{ height:2px; background:rgba(255,255,255,.5); margin-top:14px; border-radius:1px; }
+  .cover-row{ display:flex; align-items:center; gap:12px; }
+  .icon-btn{
+    appearance:none; border:none; background:transparent; color:var(--cover-ink);
+    width:34px; height:34px; border-radius:9px; display:flex; align-items:center; justify-content:center;
+    cursor:pointer; flex-shrink:0;
+  }
+  .icon-btn:hover{ background:rgba(241,235,214,.12); }
+  .icon-btn-lg{ width:46px; height:46px; }
+  button:focus-visible, input:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .icon-btn:focus-visible{ outline:2px solid #fff; outline-offset:2px; }
+  .cover-title{ font-family:var(--font-display); font-weight:700; font-size:16px; flex:1; min-width:0;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  /* ---------- home ---------- */
+  .home-body{ padding:16px 18px 0; }
+  .receipt-card{
+    background:var(--card); border:1px solid var(--rule); border-radius:12px;
+    padding:16px 18px; position:relative;
+  }
+  .receipt-label{ font-size:10.5px; letter-spacing:.14em; color:var(--ink-faint); text-transform:uppercase; }
+  .tot-row{ display:flex; align-items:center; gap:8px; margin-top:9px; }
+  .tot-row .label{ font-size:12.5px; color:var(--ink-soft); white-space:nowrap; }
+  .tot-row .dash{ flex:1; height:0; border-bottom:2px dotted var(--ink-faint); margin-bottom:3px; opacity:.7; }
+  .tot-row .val{ font-variant-numeric:tabular-nums; font-weight:700; font-size:13.5px; color:var(--ink); white-space:nowrap; }
+  .tot-row.grand{ margin-top:12px; padding-top:12px; border-top:1px solid var(--rule); }
+  .tot-row.grand .label{ font-size:15px; font-weight:700; color:var(--ink); font-family:var(--font-display); }
+  .tot-row.grand .val{ font-size:20px; color:var(--stamp); font-family:var(--font-display); }
+
+  .section-head{ display:flex; align-items:baseline; justify-content:space-between; margin:22px 0 10px; }
+  .section-head .left{ display:flex; align-items:center; gap:7px; }
+  .tag-chip{ width:20px; height:20px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+    color:#fff; font-weight:700; font-size:10.5px; flex-shrink:0; font-family:var(--font-display); }
+  .section-head h2{ font-size:13px; margin:0; font-weight:700; font-family:var(--font-display); }
+  .section-head .note{ font-size:10.5px; color:var(--ink-faint); }
+
+  .annual-box{ background:var(--annual-bg); border:1px solid var(--annual-border); border-radius:12px; padding:14px 15px 4px; }
+  .annual-head{ display:flex; align-items:center; justify-content:space-between; }
+  .annual-head .warn{ font-size:10px; font-weight:600; color:var(--soon); }
+  .annual-row{ display:flex; align-items:center; gap:10px; padding:10px 0; border-top:1px solid var(--annual-border);
+    border-left:none; border-right:none; border-bottom:none; background:none; cursor:pointer; width:100%; text-align:left; font:inherit; color:inherit; }
+  .annual-row:first-of-type{ border-top:none; margin-top:6px; }
+  .annual-row .info{ flex:1; min-width:0; }
+  .annual-row .name{ font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .annual-row .meta{ font-size:10.5px; color:var(--ink-faint); margin-top:2px; }
+  .annual-row .side{ text-align:right; flex-shrink:0; }
+  .annual-row .price{ font-weight:700; font-size:13px; font-variant-numeric:tabular-nums; }
+  .pill-outline{ display:inline-block; margin-top:4px; font-size:9.5px; font-weight:700; padding:3px 8px;
+    border-radius:20px; background:#000; border:1px solid #000; color:#fff; }
+
+  .list-card{ background:var(--card); border:1px solid var(--rule); border-radius:12px; padding:0 14px; }
+  .sub-row{ display:flex; align-items:center; gap:11px; padding:12px 0; border-top:1px solid var(--rule);
+    cursor:pointer; background:none; border-left:none; border-right:none; border-bottom:none; width:100%; text-align:left;
+    font:inherit; color:inherit; }
+  .sub-row:first-child{ border-top:none; }
+  .badge{ width:34px; height:34px; border-radius:9px; flex-shrink:0; color:#fff; font-weight:700;
+    display:flex; align-items:center; justify-content:center; font-size:14px; font-family:var(--font-display);
+    position:relative; overflow:hidden; }
+  .badge img{ position:absolute; inset:0; width:100%; height:100%; object-fit:contain; }
+  .badge-lg{ width:56px; height:56px; border-radius:16px; font-size:22px; margin:0 auto 10px; }
+  .badge-xs{ width:16.5px; height:16.5px; border-radius:4px; font-size:7px; }
+  .sub-row .info{ flex:1; min-width:0; }
+  .sub-row .name{ font-size:13.5px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sub-row .meta{ font-size:11px; color:var(--ink-faint); margin-top:2px; }
+  .sub-row .side{ text-align:right; flex-shrink:0; }
+  .sub-row .price{ font-weight:700; font-size:13.5px; font-variant-numeric:tabular-nums; }
+  .urg-chip{ display:inline-block; margin-top:4px; font-size:10px; font-weight:700; padding:3px 8px; border-radius:20px; }
+  .urg-urgent{ background:var(--stamp-soft); color:var(--stamp); }
+  .urg-soon{ background:var(--soon-soft); color:var(--soon); }
+  .urg-later{ background:var(--later-soft); color:var(--later-ink); }
+
+  .empty-hint{ background:var(--paper-deep); border-radius:12px; padding:20px; font-size:12.5px; color:var(--ink-soft); text-align:center; }
+
+  .fab-wrap{ position:sticky; bottom:0; padding:14px 18px 18px; background:linear-gradient(180deg, transparent, var(--paper) 40%); flex-shrink:0; }
+  .fab{ width:100%; background:var(--accent); color:var(--accent-ink); border:none; border-radius:12px;
+    padding:14px; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;
+    cursor:pointer; box-shadow:0 10px 22px -10px rgba(46,75,112,.55); }
+  .fab:hover{ filter:brightness(1.06); }
+
+  /* ---------- add/edit ---------- */
+  .form-body{ padding:20px 20px 28px; }
+  .field{ margin-bottom:16px; }
+  .field label{ display:block; font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin-bottom:7px; }
+  .text-input{ width:100%; border:none; background:var(--paper-deep); border-radius:10px; padding:13px 14px;
+    font-size:14px; color:var(--ink); font-family:inherit; }
+  .text-input:focus{ outline:2px solid var(--accent); outline-offset:0; }
+  .row-2{ display:flex; gap:10px; }
+  .row-2 > div{ flex:1; min-width:0; }
+  .seg{ display:flex; background:var(--paper-deep); border-radius:10px; padding:3px; gap:3px; }
+  .seg button{ flex:1; border:none; background:transparent; padding:9px 4px; border-radius:8px; font-size:12px;
+    font-weight:600; color:var(--ink-soft); cursor:pointer; }
+  .seg button.on{ background:var(--accent); color:var(--accent-ink); }
+  .date-field{ display:flex; align-items:center; justify-content:space-between; background:var(--paper-deep);
+    border-radius:10px; padding:13px 14px; cursor:pointer; border:none; width:100%; font-family:inherit; text-align:left; }
+  .date-field .dv{ font-weight:700; font-size:14px; color:var(--ink); }
+  .date-field input[type=date]{ position:absolute; opacity:0; width:1px; height:1px; pointer-events:none; }
+  .preview-card{ background:var(--paper-deep); border-radius:10px; padding:16px; }
+  .preview-card .cap{ font-size:10.5px; color:var(--ink-faint); letter-spacing:.06em; margin:0 0 8px; }
+  .preview-row{ display:flex; justify-content:space-between; padding:3px 0; font-size:12.5px; }
+  .preview-row .l{ color:var(--ink-soft); }
+  .preview-row .v{ font-weight:700; }
+  .save-btn{ width:100%; margin-top:22px; border:none; border-radius:10px; padding:14px; font-weight:700;
+    font-size:14px; cursor:pointer; }
+  .logo-row{ display:flex; align-items:center; gap:12px; }
+  .logo-btn{ border:1.4px solid var(--rule); background:var(--paper); border-radius:8px; padding:9px 13px;
+    font-size:12px; font-weight:700; color:var(--ink); cursor:pointer; }
+  .logo-btn.logo-remove{ color:var(--stamp); border-color:var(--stamp-soft); }
+
+  /* ---------- detail ---------- */
+  .detail-body{ padding:22px 20px 26px; }
+  .d-head{ text-align:center; }
+  .d-head .sub{ font-size:13px; color:var(--ink-soft); }
+  .d-price{ font-family:var(--font-display); font-weight:700; font-size:34px; margin-top:6px; }
+  .d-cycle{ font-size:13px; color:var(--ink-faint); }
+  .rule-pill{ display:inline-block; margin-top:8px; font-size:10.5px; font-weight:700; padding:4px 11px;
+    border-radius:20px; background:var(--soon-soft); color:var(--soon); }
+  .ledger{ margin-top:18px; border-top:1px solid var(--rule); }
+  .ledger-row{ display:flex; justify-content:space-between; padding:12px 0; border-bottom:1px solid var(--rule); font-size:12.5px; }
+  .ledger-row .l{ color:var(--ink-faint); }
+  .ledger-row .v{ font-weight:600; }
+  .tl-cap{ font-size:10.5px; color:var(--ink-faint); letter-spacing:.06em; margin:20px 0 10px; }
+  .tl-labels{ display:flex; justify-content:space-between; margin-top:8px; }
+  .tl-labels div{ font-size:9.5px; text-align:center; line-height:1.35; white-space:pre-line; flex:1; }
+  .hanko{ display:flex; gap:14px; background:var(--paper-deep); border-radius:12px; padding:16px; margin-top:20px; }
+  .stamp-circle{ width:52px; height:52px; border-radius:50%; border:2.5px solid var(--stamp); color:var(--stamp);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0; transform:rotate(-8deg);
+    font-weight:700; font-size:12px; line-height:1.15; text-align:center; white-space:pre-line; }
+  .hanko .cap{ font-size:10.5px; color:var(--ink-faint); letter-spacing:.05em; }
+  .hanko .date{ font-size:16px; font-weight:700; color:var(--stamp); margin:3px 0 6px; font-family:var(--font-display); }
+  .hanko .exp{ font-size:11.5px; color:var(--ink-soft); line-height:1.5; }
+  .d-actions{ display:flex; gap:10px; margin-top:22px; }
+  .btn-outline{ flex:1; border:1.4px solid var(--ink-faint); background:transparent; border-radius:10px; padding:12px;
+    font-weight:700; font-size:13px; color:var(--ink); cursor:pointer; }
+  .btn-danger{ flex:1; border:none; background:var(--stamp); border-radius:10px; padding:12px; font-weight:700;
+    font-size:13px; color:#fff; cursor:pointer; }
+
+  /* ---------- calendar ---------- */
+  .cal-body{ padding:18px 18px 26px; }
+  .cal-nav{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .cal-navbtn{ width:32px; height:32px; border-radius:8px; border:none; background:var(--paper-deep); color:var(--ink);
+    font-size:17px; cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .cal-navbtn:hover{ background:var(--rule); }
+  .cal-month-label{ font-weight:700; font-size:15px; }
+  .cal-today-btn{ font-size:10.5px; color:var(--accent); font-weight:700; background:none; border:none; cursor:pointer; padding:3px 8px; }
+  .cal-weekdays{ display:grid; grid-template-columns:repeat(7,1fr); text-align:center; font-size:10.5px; color:var(--ink-faint); margin-bottom:6px; }
+  .cal-weekdays span:first-child{ color:var(--stamp); }
+  .cal-weekdays span:last-child{ color:var(--accent); }
+  .cal-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; }
+  .cal-cell{ aspect-ratio:1; border:none; background:var(--paper-deep); border-radius:9px; position:relative;
+    cursor:pointer; color:var(--ink); padding:0; font:inherit; }
+  .cal-cell.blank{ background:none; cursor:default; }
+  .cal-cell.today{ box-shadow:inset 0 0 0 1.6px var(--accent); }
+  .cal-cell.selected{ background:var(--accent); color:var(--accent-ink); }
+  .cal-cell .daynum{ position:absolute; top:4px; left:6px; font-size:9.6px; font-weight:500; }
+  .cal-cell.today .daynum{ font-weight:700; }
+  .cal-cell .dots{ position:absolute; left:50%; top:54%; transform:translate(-50%,-50%);
+    display:flex; align-items:center; gap:3px; }
+  .cal-mini-badge{ display:inline-flex; border-radius:5px; flex-shrink:0; box-shadow:0 0 0 2px var(--stamp); }
+  .cal-mini-extra{ font-size:8px; color:var(--ink-faint); font-weight:700; align-self:center; flex-shrink:0; }
+  .cal-cell.selected .cal-mini-extra{ color:var(--accent-ink); }
+  .cal-monthend{ margin-top:18px; }
+  .cal-monthend-title{ font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin-bottom:8px; }
+  .cal-panel{ margin-top:22px; }
+  .cal-panel-title{ font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin-bottom:8px; }
+  .cal-event{ display:flex; align-items:center; gap:10px; padding:11px 12px; background:var(--card); border:1px solid var(--rule);
+    border-radius:10px; margin-bottom:8px; cursor:pointer; width:100%; text-align:left; font:inherit; color:inherit; }
+  .cal-event-tag{ font-size:9.5px; font-weight:700; padding:3px 8px; border-radius:20px; flex-shrink:0; }
+  .cal-event-tag.bill{ background:var(--annual-bg); color:var(--accent); }
+  .cal-event-tag.cancel{ background:var(--stamp-soft); color:var(--stamp); }
+  .cal-event .info{ flex:1; min-width:0; }
+  .cal-event .name{ font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cal-event .price{ font-size:12px; color:var(--ink-faint); margin-top:2px; }
+
+  /* ---------- trend (spending over time) ---------- */
+  .trend-body{ padding:18px 18px 26px; }
+  .trend-note{ font-size:11.5px; color:var(--ink-soft); line-height:1.6; margin:0 0 16px; }
+  .trend-chart-wrap{ position:relative; background:var(--paper-deep); border-radius:12px; overflow:hidden; }
+  .trend-tooltip{ position:absolute; transform:translate(-50%,-100%); background:var(--ink); color:#fff;
+    border-radius:8px; padding:6px 10px; font-size:11px; pointer-events:none; white-space:nowrap; z-index:2; }
+  .trend-tooltip .tt-label{ color:rgba(255,255,255,.7); font-size:9.5px; }
+  .trend-tooltip .tt-value{ font-weight:700; font-size:12.5px; font-variant-numeric:tabular-nums; }
+  .trend-list-title{ font-size:11px; color:var(--ink-faint); letter-spacing:.05em; margin:22px 0 4px; }
+
+  /* ---------- overlay / modal ---------- */
+  .overlay{ position:absolute; inset:0; background:rgba(27,27,23,.45); display:flex; align-items:center;
+    justify-content:center; padding:24px; z-index:20; }
+  .modal{ background:var(--paper); border-radius:14px; padding:22px; max-width:320px; width:100%; }
+  .modal h3{ margin:0 0 10px; font-family:var(--font-display); font-size:16px; }
+  .modal p{ margin:0 0 18px; font-size:12.5px; color:var(--ink-soft); line-height:1.6; }
+  .modal .row{ display:flex; gap:10px; justify-content:flex-end; }
+  .modal button{ border:none; background:transparent; padding:9px 14px; border-radius:8px; font-weight:700; font-size:13px; cursor:pointer; }
+  .modal .cancel{ color:var(--ink-soft); }
+  .modal .confirm{ color:var(--stamp); }
+  .modal .confirm:hover, .modal .cancel:hover{ background:var(--paper-deep); }
+
+  [hidden]{ display:none !important; }
+</style>
+
+<div class="app-frame" id="app"></div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------------- date helpers (mirrors LocalDate semantics) ---------------- */
+  function ymd(y,m,d){ return new Date(y, m, d); }
+  function fromISO(s){ const [y,m,d] = s.split("-").map(Number); return ymd(y, m-1, d); }
+  function toISO(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+  function startOfToday(){ const n=new Date(); return ymd(n.getFullYear(), n.getMonth(), n.getDate()); }
+  function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+  function addMonthsClamped(d, n){
+    const day = d.getDate();
+    const total = d.getMonth() + n;
+    const y = d.getFullYear() + Math.floor(total/12);
+    const m = ((total%12)+12)%12;
+    return ymd(y, m, Math.min(day, daysInMonth(y,m)));
+  }
+  function addYearsClamped(d, n){ return addMonthsClamped(d, n*12); }
+  function addDays(d, n){ return ymd(d.getFullYear(), d.getMonth(), d.getDate()+n); }
+  function endOfMonth(d){ return ymd(d.getFullYear(), d.getMonth(), daysInMonth(d.getFullYear(), d.getMonth())); }
+  function diffDays(a,b){ return Math.round((a.getTime()-b.getTime())/86400000); }
+
+  const MONTH_DAY = new Intl.DateTimeFormat("ja-JP", {month:"numeric", day:"numeric"});
+  const YMD = new Intl.DateTimeFormat("ja-JP", {year:"numeric", month:"numeric", day:"numeric"});
+  function formatMonthDay(d){ return MONTH_DAY.format(d); }
+  function formatYMD(d){ return YMD.format(d).replaceAll("/","/"); }
+  function formatFullJP(d){ return d.getFullYear()+"年"+(d.getMonth()+1)+"月"+d.getDate()+"日"; }
+  function formatYen(n){ return "¥"+n.toLocaleString("ja-JP"); }
+  function formatRelDays(n){ if(n>0) return "あと"+n+"日"; if(n===0) return "今日"; return (-n)+"日前"; }
+
+  /* ---------------- billing calculator (ports BillingCalculator.kt) ---------------- */
+  function nextBillingDate(anchor, cycle, today){
+    today = today || startOfToday();
+    let next = anchor;
+    while(!(next.getTime() > today.getTime())){
+      next = cycle === "monthly" ? addMonthsClamped(next,1) : addYearsClamped(next,1);
+    }
+    return next;
+  }
+  function recommendedCancelDate(nextBilling, rule){
+    if(rule === "day_before") return addDays(nextBilling, -1);
+    const monthBefore = addMonthsClamped(nextBilling, -1);
+    return endOfMonth(monthBefore);
+  }
+  function monthlyEquivalent(price, cycle){ return cycle === "monthly" ? price : Math.round(price/12); }
+  function urgencyFor(days){ return days<=21 ? "urgent" : days<=35 ? "soon" : "later"; }
+  function toUiModel(sub, today){
+    today = today || startOfToday();
+    const anchor = fromISO(sub.anchorDate);
+    const next = nextBillingDate(anchor, sub.cycle, today);
+    const cancel = recommendedCancelDate(next, sub.cancelRule);
+    const daysUntilCancel = diffDays(cancel, today);
+    return Object.assign({}, sub, {
+      anchor, nextBillingDate: next, recommendedCancelDate: cancel,
+      daysUntilCancel, monthlyEquivalentYen: monthlyEquivalent(sub.priceYen, sub.cycle),
+      urgency: urgencyFor(daysUntilCancel)
+    });
+  }
+
+  /** 月額サブスクの小計・年額サブスクの月割小計・合計をまとめて返す(ホーム画面と支出推移グラフの両方で使う)。 */
+  function computeTotals(models){
+    const monthlySub = models.filter(m => m.cycle === "monthly").reduce((s,m)=>s+m.priceYen,0);
+    const annualEq = models.filter(m => m.cycle === "yearly").reduce((s,m)=>s+m.monthlyEquivalentYen,0);
+    return { monthlySub, annualEq, grand: monthlySub + annualEq };
+  }
+
+  /** すべての請求日・解約目安日のうち、指定した年月に該当するものだけを集める(前後の月にはみ出す分も含む)。 */
+  function monthEvents(list, year, month){
+    const events = {};
+    function push(dateObj, sub, type){
+      if(dateObj.getFullYear()===year && dateObj.getMonth()===month){
+        const key = toISO(dateObj);
+        (events[key] = events[key] || []).push({sub, type});
+      }
+    }
+    list.forEach(sub => {
+      const anchor = fromISO(sub.anchorDate);
+      for(let delta=-1; delta<=1; delta++){
+        const ref = addMonthsClamped(ymd(year,month,1), delta);
+        const y = ref.getFullYear(), m = ref.getMonth();
+        let billingDate = null;
+        if(sub.cycle === "monthly"){
+          billingDate = ymd(y, m, Math.min(anchor.getDate(), daysInMonth(y,m)));
+        } else if(m === anchor.getMonth()){
+          billingDate = ymd(y, m, Math.min(anchor.getDate(), daysInMonth(y,m)));
+        }
+        if(billingDate && billingDate.getTime() >= anchor.getTime()){
+          push(billingDate, sub, "bill");
+          push(recommendedCancelDate(billingDate, sub.cancelRule), sub, "cancel");
+        }
+      }
+    });
+    return events;
+  }
+
+  const AUTO_PALETTE =["#C4302B","#1DB954","#10A37F","#B4121B","#D3242A","#4285F4","#232F3E","#2E4B70","#8C6A1E","#6B4FA0"];
+
+  /** 実際のブランドカラー(色そのものは商標にならないため、公式ロゴ画像を使わずに再現できる)。
+   *  サービス名にキーワードが含まれていれば自動でそのブランド色を使い、なければ名前のハッシュ色にフォールバックする。 */
+  const BRAND_COLORS = [
+    ["netflix","#E50914"], ["スポティファイ","#1DB954"], ["spotify","#1DB954"],
+    ["youtube","#FF0000"], ["amazon","#FF9900"], ["kindle","#FF9900"], ["audible","#FF9900"],
+    ["google","#4285F4"], ["adobe","#FA0F00"], ["chatgpt","#10A37F"], ["openai","#10A37F"],
+    ["disney","#113CCF"], ["hulu","#1CE783"], ["apple music","#FA243C"], ["apple tv","#000000"],
+    ["icloud","#3693F3"], ["u-next","#000000"], ["unext","#000000"], ["abema","#21C7B7"],
+    ["line music","#00C300"], ["dropbox","#0061FF"], ["notion","#000000"], ["canva","#00C4CC"],
+    ["microsoft","#D83B01"], ["office365","#D83B01"], ["nintendo","#E60012"],
+    ["playstation","#0070CC"], ["ps plus","#0070CC"]
+  ];
+  function colorForName(name){
+    const t = name.trim();
+    if(!t) return AUTO_PALETTE[0];
+    const norm = t.toLowerCase();
+    for(const [key, hex] of BRAND_COLORS){
+      if(norm.includes(key)) return hex;
+    }
+    let sum = 0; for(const ch of t) sum += ch.codePointAt(0);
+    return AUTO_PALETTE[sum % AUTO_PALETTE.length];
+  }
+
+  /* ---------------- storage ---------------- */
+  const STORE_KEY = "subscript-receipt.subs.v1";
+  function loadSubs(){
+    let list = null;
+    try{
+      const raw = localStorage.getItem(STORE_KEY);
+      if(raw) list = JSON.parse(raw);
+    }catch(e){}
+    if(list){
+      list = list.map(s => s.logoAssetId ? s : Object.assign({}, s, {colorHex: colorForName(s.name)}));
+      saveSubs(list);
+      return list;
+    }
+    const seed = [
+      {id:"s1", name:"YouTube Premium", priceYen:1280, cycle:"monthly", anchorDate:"2025-01-28", cancelRule:"end_of_month", colorHex:"#C4302B"},
+      {id:"s2", name:"Spotify Premium", priceYen:980, cycle:"monthly", anchorDate:"2025-01-03", cancelRule:"day_before", colorHex:"#1DB954"},
+      {id:"s3", name:"ChatGPT Plus", priceYen:3000, cycle:"monthly", anchorDate:"2025-01-05", cancelRule:"day_before", colorHex:"#10A37F"},
+      {id:"s4", name:"Netflix プレミアム", priceYen:1980, cycle:"monthly", anchorDate:"2025-01-15", cancelRule:"day_before", colorHex:"#B4121B"},
+      {id:"s5", name:"Adobe Creative Cloud", priceYen:6480, cycle:"monthly", anchorDate:"2025-01-22", cancelRule:"day_before", colorHex:"#D3242A"},
+      {id:"s6", name:"Google One(200GB)", priceYen:3800, cycle:"yearly", anchorDate:"2025-11-02", cancelRule:"day_before", colorHex:"#4285F4"},
+      {id:"s7", name:"Amazon Prime", priceYen:5900, cycle:"yearly", anchorDate:"2025-08-20", cancelRule:"day_before", colorHex:"#232F3E"}
+    ];
+    saveSubs(seed);
+    return seed;
+  }
+  function saveSubs(list){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }catch(e){} }
+
+  /** 毎月の「合計(月換算)」を記録する履歴。過去分は上書きしない(その月が終わった時点の値のまま固定)。
+   *  今月分だけは、開くたびに最新の内容で上書きする。 */
+  const HISTORY_KEY = "subscript-receipt.history.v1";
+  function loadHistory(){
+    try{ const raw = localStorage.getItem(HISTORY_KEY); if(raw) return JSON.parse(raw); }catch(e){}
+    return {};
+  }
+  function saveHistory(h){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }catch(e){} }
+  function monthKey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
+  function recordCurrentMonth(){
+    const key = monthKey(startOfToday());
+    const total = computeTotals(subs.map(s => toUiModel(s))).grand;
+    if(history[key] !== total){
+      history[key] = total;
+      saveHistory(history);
+    }
+  }
+
+  /* ---------------- app state ---------------- */
+  let subs = loadSubs();
+  let history = loadHistory();
+  recordCurrentMonth();
+  let view = {screen:"home", id:null};
+  const root = document.getElementById("app");
+
+  function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+  /** サービスのロゴ画像(アップロード済みなら)か、頭文字バッジをHTMLとして返す。
+   *  ロゴ画像は丸く切り抜かず(object-fit:contain)実際の形のまま収める。画像が404した場合は自動で頭文字に戻る。 */
+  function badgeHTML(sub, extraClass){
+    const initial = esc((sub.name.trim()[0]||"?").toUpperCase());
+    const src = sub.logoAssetId ? ("/_blob/" + sub.logoAssetId) : null;
+    return `<div class="badge${extraClass?(" "+extraClass):""}" style="background:${sub.colorHex}">
+      <span${src?' style="display:none"':""}>${initial}</span>
+      ${src ? `<img src="${src}" alt="" onerror="this.remove();this.previousElementSibling.style.display='';">` : ""}
+    </div>`;
+  }
+
+  /** カレンダーのマス目に、その日の予定を各サブスクのロゴ/頭文字バッジ(極小)で表示する。
+   *  請求日は黒い縁、解約目安日は朱い縁で種類を見分けられるようにする。最大2件+「+N」。 */
+  function calDayIconsHTML(dayEvents){
+    if(!dayEvents.length) return "";
+    const shown = dayEvents.slice(0,2);
+    const extra = dayEvents.length - shown.length;
+    const items = shown.map(ev =>
+      `<span class="cal-mini-badge ${ev.type}">${badgeHTML(ev.sub, "badge-xs")}</span>`
+    ).join("");
+    const extraHTML = extra>0 ? `<span class="cal-mini-extra">+${extra}</span>` : "";
+    return `<span class="dots">${items}${extraHTML}</span>`;
+  }
+
+  /* ---------------- assets capability (ロゴ画像アップロード用、使えない環境では自動的に非表示) ---------------- */
+  let assetsApi = null;
+  (async function initAssets(){
+    try{
+      if(window.claude && window.claude.use){
+        assetsApi = await window.claude.use("assets");
+      }
+    }catch(e){}
+    if(assetsApi && view.screen === "addEdit") render();
+  })();
+
+  function render(){
+    if(view.screen === "home") root.innerHTML = homeHTML();
+    else if(view.screen === "addEdit") root.innerHTML = formHTML(view.id);
+    else if(view.screen === "calendar") root.innerHTML = calendarHTML();
+    else if(view.screen === "trend") root.innerHTML = trendHTML();
+    else root.innerHTML = detailHTML(view.id);
+    wire();
+  }
+
+  /* ---------------- HOME ---------------- */
+  function homeHTML(){
+    const today = startOfToday();
+    const models = subs.map(s => toUiModel(s, today));
+    const monthly = models.filter(m => m.cycle === "monthly").sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
+    const annual = models.filter(m => m.cycle === "yearly").sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
+    const { monthlySub, annualEq, grand } = computeTotals(models);
+
+    return `
+    <div class="screen">
+      <div class="cover-bar">
+        <div class="cover-row" style="align-items:flex-start;">
+          <div style="flex:1;min-width:0;">
+            <p class="eyebrow">Subscription Manager</p>
+            <h1>サブスク管理アプリ</h1>
+          </div>
+          <div style="display:flex;gap:2px;">
+            <button class="icon-btn icon-btn-lg" id="btnTrend" aria-label="支出の推移">${iconChart()}</button>
+            <button class="icon-btn icon-btn-lg" id="btnCalendar" aria-label="カレンダー">${iconCalendar()}</button>
+          </div>
+        </div>
+        <div class="cover-thread"></div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--gold)">${models.length}件を管理中</div>
+      </div>
+      <div class="scroll">
+        <div class="home-body">
+          <div class="receipt-card">
+            <div class="receipt-label">今月のご利用明細</div>
+            <div class="tot-row"><span class="label">月額サブスク 小計</span><span class="dash"></span><span class="val">${formatYen(monthlySub)}</span></div>
+            <div class="tot-row"><span class="label">年額サブスク(月割)</span><span class="dash"></span><span class="val">${formatYen(annualEq)}</span></div>
+            <div class="tot-row grand"><span class="label">合計(月換算)</span><span class="val">${formatYen(grand)}</span></div>
+          </div>
+
+          ${annual.length ? `
+          <div style="margin-top:14px" class="annual-box">
+            <div class="annual-head">
+              <div class="left" style="display:flex;align-items:center;gap:7px;">
+                <div class="tag-chip" style="background:var(--accent)">年</div>
+                <h2 style="font-size:12.5px;font-family:var(--font-display);font-weight:700;margin:0;">年額のサブスク</h2>
+              </div>
+              <span class="warn">年1回の請求・見逃し注意</span>
+            </div>
+            ${annual.map(m => `
+              <button class="annual-row" data-detail="${m.id}">
+                ${badgeHTML(m)}
+                <div class="info">
+                  <div class="name">${esc(m.name)}</div>
+                  <div class="meta">次回請求 ${formatMonthDay(m.nextBillingDate)}・解約目安 ${formatMonthDay(m.recommendedCancelDate)}</div>
+                </div>
+                <div class="side">
+                  <div class="price">${formatYen(m.priceYen)}</div>
+                  <span class="pill-outline">${formatRelDays(diffDays(m.nextBillingDate, today))}</span>
+                </div>
+              </button>
+            `).join("")}
+          </div>` : ""}
+
+          <div class="section-head">
+            <div class="left"><div class="tag-chip" style="background:var(--accent)">月</div><h2>月額のサブスク</h2></div>
+            <span class="note">解約目安が近い順</span>
+          </div>
+
+          ${monthly.length === 0 ? `<div class="empty-hint">月額のサブスクはまだありません。下の「追加する」から登録できます。</div>` : `
+          <div class="list-card">
+            ${monthly.map(m => `
+              <button class="sub-row" data-detail="${m.id}">
+                ${badgeHTML(m)}
+                <div class="info">
+                  <div class="name">${esc(m.name)}</div>
+                  <div class="meta">月額・次回請求 ${formatMonthDay(m.nextBillingDate)}</div>
+                </div>
+                <div class="side">
+                  <div class="price">${formatYen(m.priceYen)}</div>
+                  <span class="urg-chip urg-${m.urgency}">解約目安 ${formatMonthDay(m.recommendedCancelDate)}</span>
+                </div>
+              </button>
+            `).join("")}
+          </div>`}
+
+          <div style="height:20px"></div>
+        </div>
+      </div>
+      <div class="fab-wrap">
+        <button class="fab" id="btnAdd">＋　追加する</button>
+      </div>
+    </div>`;
+  }
+
+  /* ---------------- ADD / EDIT ---------------- */
+  let draft = null;
+  function formHTML(id){
+    const isEdit = !!id;
+    if(!draft || draft._id !== (id||"__new__")){
+      const existing = isEdit ? subs.find(s=>s.id===id) : null;
+      draft = existing ? {
+        _id:id, name:existing.name, priceYen:String(existing.priceYen), cycle:existing.cycle,
+        anchorDate:existing.anchorDate, cancelRule:existing.cancelRule, colorHex:existing.colorHex,
+        logoAssetId:existing.logoAssetId||null
+      } : {
+        _id:"__new__", name:"", priceYen:"", cycle:"monthly", anchorDate:toISO(startOfToday()),
+        cancelRule:"day_before", colorHex:colorForName(""), logoAssetId:null
+      };
+    }
+    const anchor = fromISO(draft.anchorDate);
+    const next = nextBillingDate(anchor, draft.cycle);
+    const cancel = recommendedCancelDate(next, draft.cancelRule);
+    const price = parseInt(draft.priceYen,10) || 0;
+    const canSave = draft.name.trim().length>0 && price>0;
+
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:10px 8px;">
+        <div class="cover-row">
+          <button class="icon-btn" id="btnBack" aria-label="戻る">${iconBack()}</button>
+          <div class="cover-title">${isEdit ? "サブスクを編集" : "サブスクを追加"}</div>
+        </div>
+      </div>
+      <div class="scroll"><div class="form-body">
+        <div class="field">
+          <label>サービス名</label>
+          <input class="text-input" id="fName" placeholder="例: Netflix" value="${esc(draft.name)}">
+        </div>
+
+        ${assetsApi ? `
+        <div class="field">
+          <label>ロゴ画像(任意)</label>
+          <div class="logo-row">
+            <div id="logoPreviewWrap">${badgeHTML({name:draft.name, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId})}</div>
+            <button type="button" class="logo-btn" id="btnPickLogo">${draft.logoAssetId ? "画像を変更" : "画像を選択"}</button>
+            ${draft.logoAssetId ? `<button type="button" class="logo-btn logo-remove" id="btnRemoveLogo">削除</button>` : ""}
+          </div>
+          <input type="file" id="fLogo" accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml" style="display:none">
+        </div>` : ""}
+
+        <div class="row-2">
+          <div class="field">
+            <label>料金(円)</label>
+            <input class="text-input" id="fPrice" inputmode="numeric" placeholder="0" value="${esc(draft.priceYen)}">
+          </div>
+          <div class="field">
+            <label>請求サイクル</label>
+            <div class="seg" id="segCycle">
+              <button type="button" class="${draft.cycle==='monthly'?'on':''}" data-val="monthly">月額</button>
+              <button type="button" class="${draft.cycle==='yearly'?'on':''}" data-val="yearly">年額</button>
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>${draft.cycle==='monthly' ? "契約日(毎月の請求日)" : "契約日(毎年の請求日)"}</label>
+          <button type="button" class="date-field" id="btnDate">
+            <span class="dv">${formatFullJP(anchor)}</span>
+            ${iconEdit()}
+          </button>
+          <input type="date" id="fDate" value="${draft.anchorDate}">
+        </div>
+        <div class="field">
+          <label>解約ルール</label>
+          <div class="seg" id="segRule">
+            <button type="button" class="${draft.cancelRule==='day_before'?'on':''}" data-val="day_before">請求日の前日</button>
+            <button type="button" class="${draft.cancelRule==='end_of_month'?'on':''}" data-val="end_of_month">月末までに</button>
+          </div>
+        </div>
+
+        <div class="preview-card">
+          <p class="cap">この内容でのプレビュー</p>
+          <div class="preview-row"><span class="l">次回請求日</span><span class="v">${formatYMD(next)}</span></div>
+          <div class="preview-row"><span class="l">おすすめ解約日</span><span class="v" style="color:var(--stamp)">${formatYMD(cancel)}</span></div>
+        </div>
+
+        <button class="save-btn" id="btnSave" ${canSave?"":"disabled"}
+          style="background:${canSave?"var(--accent)":"var(--ink-faint)"};color:var(--accent-ink)">保存する</button>
+      </div></div>
+    </div>`;
+  }
+
+  /* ---------------- DETAIL ---------------- */
+  function detailHTML(id){
+    const sub = subs.find(s=>s.id===id);
+    if(!sub) { view = {screen:"home", id:null}; return homeHTML(); }
+    const m = toUiModel(sub);
+    const today = startOfToday();
+    const total = Math.max(1, diffDays(m.nextBillingDate, today));
+    const cpos = Math.min(total, Math.max(0, diffDays(m.recommendedCancelDate, today)));
+    const ratio = cpos/total;
+
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:6px 6px;">
+        <div class="cover-row">
+          <button class="icon-btn" id="btnBack" aria-label="戻る">${iconBack()}</button>
+          <div class="cover-title">${esc(m.name)}</div>
+          <button class="icon-btn" id="btnEdit" aria-label="編集">${iconEdit()}</button>
+        </div>
+      </div>
+      <div class="scroll"><div class="detail-body">
+        <div class="d-head">
+          ${badgeHTML(m, "badge-lg")}
+          <div class="sub">${esc(m.name)}</div>
+          <div><span class="d-price">${formatYen(m.priceYen)}</span><span class="d-cycle"> ${m.cycle==='monthly'?"/月":"/年"}</span></div>
+          <span class="rule-pill">${m.cancelRule==='day_before'?"前日ルール":"月末ルール"}</span>
+        </div>
+
+        <div class="ledger">
+          <div class="ledger-row"><span class="l">契約日</span><span class="v">${m.cycle==='monthly' ? "毎月"+m.anchor.getDate()+"日" : "毎年"+(m.anchor.getMonth()+1)+"月"+m.anchor.getDate()+"日"}</span></div>
+          <div class="ledger-row"><span class="l">次回請求日</span><span class="v">${formatFullJP(m.nextBillingDate)}</span></div>
+          <div class="ledger-row"><span class="l">解約ルール</span><span class="v">${m.cancelRule==='day_before'?"請求日の前日まで":"月末までに手続き"}</span></div>
+        </div>
+
+        <p class="tl-cap">今日から次回請求日まで</p>
+        <svg viewBox="0 0 300 26" width="100%" height="26" role="img" aria-label="タイムライン">
+          <line x1="10" y1="13" x2="290" y2="13" stroke="var(--rule)" stroke-width="3" stroke-linecap="round"/>
+          <line x1="${10+(280*ratio)}" y1="13" x2="290" y2="13" stroke="var(--stamp)" stroke-width="3" stroke-linecap="round" stroke-dasharray="2 6"/>
+          <circle cx="10" cy="13" r="4" fill="var(--ink-soft)"/>
+          <circle cx="${10+(280*ratio)}" cy="13" r="5.5" fill="var(--stamp)"/>
+          <circle cx="290" cy="13" r="4" fill="var(--ink-soft)"/>
+        </svg>
+        <div class="tl-labels">
+          <div style="text-align:left;color:var(--ink-soft)">今日<br>${formatMonthDay(today)}</div>
+          <div style="color:var(--stamp);font-weight:700">解約目安<br>${formatMonthDay(m.recommendedCancelDate)}</div>
+          <div style="text-align:right;color:var(--ink-soft)">請求日<br>${formatMonthDay(m.nextBillingDate)}</div>
+        </div>
+
+        <div class="hanko">
+          <div class="stamp-circle">要<br>検討</div>
+          <div>
+            <div class="cap">おすすめ解約日</div>
+            <div class="date">${formatFullJP(m.recommendedCancelDate)}</div>
+            <div class="exp">${m.cancelRule==='day_before'
+              ? formatMonthDay(m.nextBillingDate)+"の請求日の前日までに解約手続きをすれば、次回の請求を避けられます。"
+              : "月末ルールのため、"+formatMonthDay(m.recommendedCancelDate)+"までに解約手続きを済ませると"+formatMonthDay(m.nextBillingDate)+"の請求を避けられます。"}</div>
+          </div>
+        </div>
+
+        <div class="d-actions">
+          <button class="btn-outline" id="btnEdit2">編集する</button>
+          <button class="btn-danger" id="btnDelete">削除する</button>
+        </div>
+      </div></div>
+
+      <div class="overlay" id="deleteOverlay" hidden>
+        <div class="modal">
+          <h3>削除しますか?</h3>
+          <p>「${esc(m.name)}」をこのアプリの一覧から削除します。実際のサービスの解約手続きは、それぞれのサービス側で行ってください。</p>
+          <div class="row">
+            <button class="cancel" id="btnCancelDelete">キャンセル</button>
+            <button class="confirm" id="btnConfirmDelete">削除する</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  /* ---------------- CALENDAR ---------------- */
+  let calState = null;
+  function ensureCalState(){
+    if(!calState){
+      const t = startOfToday();
+      calState = { year: t.getFullYear(), month: t.getMonth(), selected: toISO(t) };
+    }
+  }
+
+  function calendarHTML(){
+    ensureCalState();
+    const { year, month } = calState;
+    const today = startOfToday();
+    const rawEvents = monthEvents(subs, year, month);
+    const events = {};
+    Object.keys(rawEvents).forEach(k => {
+      const cancelOnly = rawEvents[k].filter(e => e.type === "cancel");
+      if(cancelOnly.length) events[k] = cancelOnly;
+    });
+
+    /* 「月末までに」ルールは月に1日(月末)へ集中してカレンダーが埋まりやすいので、
+       日付マスからは外して、カレンダー下の専用リストにまとめて表示する。 */
+    const dayBeforeEvents = {};
+    const monthEndMap = new Map();
+    Object.keys(events).forEach(k => {
+      events[k].forEach(ev => {
+        if(ev.sub.cancelRule === "end_of_month"){
+          monthEndMap.set(ev.sub.id, ev.sub);
+        } else {
+          (dayBeforeEvents[k] = dayBeforeEvents[k] || []).push(ev);
+        }
+      });
+    });
+    const monthEndSubs = Array.from(monthEndMap.values()).sort((a,b)=>a.name.localeCompare(b.name,"ja"));
+    const monthEndDate = endOfMonth(ymd(year, month, 1));
+
+    const first = ymd(year, month, 1);
+    const startWeekday = first.getDay();
+    const totalDays = daysInMonth(year, month);
+    const cells = [];
+    for(let i=0;i<startWeekday;i++) cells.push(null);
+    for(let d=1; d<=totalDays; d++) cells.push(d);
+    while(cells.length % 7 !== 0) cells.push(null);
+
+    const gridHTML = cells.map(d => {
+      if(d === null) return `<div class="cal-cell blank"></div>`;
+      const dateObj = ymd(year, month, d);
+      const iso = toISO(dateObj);
+      const isToday = dateObj.getTime() === today.getTime();
+      const isSelected = iso === calState.selected;
+      const cellEvents = dayBeforeEvents[iso] || [];
+      return `<button class="cal-cell${isToday?" today":""}${isSelected?" selected":""}" data-day="${iso}">
+        <span class="daynum">${d}</span>
+        ${calDayIconsHTML(cellEvents)}
+      </button>`;
+    }).join("");
+
+    const selectedEvents = dayBeforeEvents[calState.selected] || [];
+    const selectedDateObj = calState.selected ? fromISO(calState.selected) : null;
+
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:10px 8px;">
+        <div class="cover-row">
+          <div class="cover-title">カレンダー</div>
+          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
+          <button class="icon-btn" id="btnGoTrend" aria-label="支出の推移">${iconChart()}</button>
+        </div>
+      </div>
+      <div class="scroll"><div class="cal-body">
+        <div class="cal-nav">
+          <button class="cal-navbtn" id="calPrev" aria-label="前の月">‹</button>
+          <div style="text-align:center;">
+            <div class="cal-month-label">${year}年${month+1}月</div>
+            <button class="cal-today-btn" id="calToday">今日</button>
+          </div>
+          <button class="cal-navbtn" id="calNext" aria-label="次の月">›</button>
+        </div>
+        <div class="cal-weekdays"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+        <div class="cal-grid">${gridHTML}</div>
+
+        ${monthEndSubs.length ? `
+        <div class="cal-monthend">
+          <p class="cal-monthend-title">月末までの解約目安(${monthEndDate.getMonth()+1}月${monthEndDate.getDate()}日)</p>
+          <div class="list-card">
+            ${monthEndSubs.map(sub => `
+              <button class="sub-row" data-detail="${sub.id}">
+                ${badgeHTML(sub)}
+                <div class="info">
+                  <div class="name">${esc(sub.name)}</div>
+                  <div class="meta">月末ルール</div>
+                </div>
+                <div class="side"><div class="price">${formatYen(sub.priceYen)}</div></div>
+              </button>
+            `).join("")}
+          </div>
+        </div>` : ""}
+
+        <div class="cal-panel">
+          <p class="cal-panel-title">${selectedDateObj ? formatFullJP(selectedDateObj) : "日付を選択してください"}</p>
+          ${selectedEvents.length === 0 ? `<div class="empty-hint">この日の予定はありません。</div>` : selectedEvents.map(ev => `
+            <button class="cal-event" data-detail="${ev.sub.id}">
+              ${badgeHTML(ev.sub)}
+              <div class="info">
+                <div class="name">${esc(ev.sub.name)}</div>
+                <div class="price">${formatYen(ev.sub.priceYen)}${ev.sub.cycle==="yearly" ? " /年" : " /月"}</div>
+              </div>
+              <span class="cal-event-tag ${ev.type}">${ev.type==="bill" ? "請求" : "解約目安"}</span>
+            </button>
+          `).join("")}
+        </div>
+      </div></div>
+    </div>`;
+  }
+
+  /* ---------------- TREND (support spending over time) ---------------- */
+  const TREND_W = 320, TREND_H = 200;
+  let trendEntries = []; // [{x,y,label,value}] in SVG user-space, filled by trendHTML() for the hover layer
+  let trendRange = "all"; // "all" | "1y" | "5y"
+
+  /** 期間セレクタで選ばれた範囲(今月から遡ってNヶ月)だけに絞り込む。"all" はそのまま全件。 */
+  function filterEntriesByRange(entries, range){
+    if(range === "all") return entries;
+    const months = range === "1y" ? 12 : 60;
+    const t = startOfToday();
+    const cutoff = addMonthsClamped(ymd(t.getFullYear(), t.getMonth(), 1), -(months-1));
+    return entries.filter(e => ymd(e.year, e.month-1, 1).getTime() >= cutoff.getTime());
+  }
+
+  /** グラフの目盛りに使う「きりのいい」上限値(1/2/5/10の倍率に切り上げ)。 */
+  function niceCeil(v){
+    if(v<=0) return 1000;
+    const exp = Math.floor(Math.log10(v));
+    const base = Math.pow(10, exp);
+    const n = v/base;
+    const nice = n<=1 ? 1 : n<=2 ? 2 : n<=5 ? 5 : 10;
+    return nice*base;
+  }
+
+  function trendHTML(){
+    recordCurrentMonth();
+    const allEntries = Object.keys(history).sort().map(key => {
+      const [y,m] = key.split("-").map(Number);
+      return { year:y, month:m, total: history[key] };
+    });
+    const entries = filterEntriesByRange(allEntries, trendRange);
+
+    const padL = 52, padR = 14, padT = 16, padB = 30;
+    const plotW = TREND_W - padL - padR, plotH = TREND_H - padT - padB;
+    const maxVal = Math.max(0, ...entries.map(e=>e.total));
+    const niceMax = niceCeil(maxVal || 1000);
+    const stepCount = 4;
+
+    function xFor(i){ return entries.length<=1 ? padL + plotW/2 : padL + (plotW * i/(entries.length-1)); }
+    function yFor(v){ return padT + plotH - (plotH * v/niceMax); }
+
+    let gridHTML = "";
+    for(let s=0; s<=stepCount; s++){
+      const v = niceMax*s/stepCount;
+      const y = yFor(v);
+      gridHTML += `<line x1="${padL}" y1="${y.toFixed(1)}" x2="${TREND_W-padR}" y2="${y.toFixed(1)}" stroke="var(--rule)" stroke-width="1"/>`;
+      gridHTML += `<text x="${padL-8}" y="${(y+3).toFixed(1)}" font-size="8.5" text-anchor="end" fill="var(--ink-faint)">${formatYen(Math.round(v))}</text>`;
+    }
+
+    let xLabelsHTML = "", lastYear = null;
+    entries.forEach((e,i) => {
+      const x = xFor(i);
+      const label = (lastYear !== e.year) ? `${e.year}/${e.month}` : `${e.month}月`;
+      lastYear = e.year;
+      xLabelsHTML += `<text x="${x.toFixed(1)}" y="${TREND_H-10}" font-size="8.5" text-anchor="middle" fill="var(--ink-faint)">${label}</text>`;
+    });
+
+    let pathD = "", markersHTML = "", endLabelHTML = "";
+    trendEntries = entries.map((e,i) => ({ x:xFor(i), y:yFor(e.total), label:`${e.year}年${e.month}月`, value:e.total }));
+    trendEntries.forEach((p,i) => {
+      pathD += (i===0 ? "M" : "L") + p.x.toFixed(1) + " " + p.y.toFixed(1) + " ";
+      markersHTML += `<circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="4.5" fill="var(--stamp)" stroke="var(--paper-deep)" stroke-width="2"/>`;
+    });
+    const lineHTML = trendEntries.length>1
+      ? `<path d="${pathD.trim()}" fill="none" stroke="var(--stamp)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>` : "";
+    if(trendEntries.length){
+      const last = trendEntries[trendEntries.length-1];
+      endLabelHTML = `<text x="${last.x.toFixed(1)}" y="${(last.y-10).toFixed(1)}" font-size="11" font-weight="700"
+        text-anchor="${trendEntries.length>1?"end":"middle"}" fill="var(--ink)">${formatYen(last.value)}</text>`;
+    }
+    const crosshairHTML = trendEntries.length
+      ? `<line id="trendCrosshair" x1="0" y1="${padT}" x2="0" y2="${TREND_H-padB}" stroke="var(--ink-faint)" stroke-width="1" hidden/>` : "";
+
+    const listHTML = entries.slice().reverse().map(e => `
+      <div class="ledger-row"><span class="l">${e.year}年${e.month}月</span><span class="v">${formatYen(e.total)}</span></div>
+    `).join("");
+
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:10px 8px;">
+        <div class="cover-row">
+          <div class="cover-title">支出の推移</div>
+          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
+          <button class="icon-btn" id="btnGoCalendar" aria-label="カレンダー">${iconCalendar()}</button>
+        </div>
+      </div>
+      <div class="scroll"><div class="trend-body">
+        <p class="trend-note">毎月の「合計(月換算)」を自動で記録します。今月分は開くたびに最新の内容へ更新され、月が変わると値が固定されます。</p>
+        <div class="seg" id="segTrendRange" style="margin-bottom:14px;">
+          <button type="button" class="${trendRange==='all'?'on':''}" data-val="all">全て</button>
+          <button type="button" class="${trendRange==='1y'?'on':''}" data-val="1y">1年分</button>
+          <button type="button" class="${trendRange==='5y'?'on':''}" data-val="5y">5年分</button>
+        </div>
+        <div class="trend-chart-wrap">
+          <svg viewBox="0 0 ${TREND_W} ${TREND_H}" width="100%" height="${TREND_H}" id="trendSvg" role="img" aria-label="月々の合計金額の推移">
+            ${gridHTML}${lineHTML}${markersHTML}${xLabelsHTML}${endLabelHTML}${crosshairHTML}
+          </svg>
+          <div class="trend-tooltip" id="trendTooltip" hidden>
+            <div class="tt-label"></div><div class="tt-value"></div>
+          </div>
+        </div>
+        ${entries.length < 2 ? `<div class="empty-hint" style="margin-top:14px;">来月以降、記録が増えるとグラフになっていきます。</div>` : ""}
+
+        <p class="trend-list-title">月ごとの記録</p>
+        <div class="ledger">${listHTML}</div>
+      </div></div>
+    </div>`;
+  }
+
+  function iconBack(){ return `<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>`; }
+  function iconEdit(){ return `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`; }
+  function iconCalendar(){ return `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/></svg>`; }
+  function iconChart(){ return `<svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16"/><path d="M4 15l4.5-5 4 3L19 6"/></svg>`; }
+  function iconHome(){ return `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-7 9 7"/><path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"/></svg>`; }
+
+  function updateSaveButtonState(){
+    const price = parseInt(draft.priceYen,10)||0;
+    const canSave = draft.name.trim().length>0 && price>0;
+    const btn = document.getElementById("btnSave");
+    if(btn){
+      btn.disabled = !canSave;
+      btn.style.background = canSave ? "var(--accent)" : "var(--ink-faint)";
+    }
+  }
+
+  /* ---------------- wiring ---------------- */
+  function wire(){
+    if(view.screen === "home"){
+      root.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => {
+        view = {screen:"detail", id: el.getAttribute("data-detail")}; render();
+      }));
+      const add = document.getElementById("btnAdd");
+      if(add) add.addEventListener("click", () => { draft = null; view = {screen:"addEdit", id:null}; render(); });
+      const cal = document.getElementById("btnCalendar");
+      if(cal) cal.addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
+      const trendBtn = document.getElementById("btnTrend");
+      if(trendBtn) trendBtn.addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
+    }
+    else if(view.screen === "addEdit"){
+      document.getElementById("btnBack").addEventListener("click", () => { draft = null; view = {screen: view.id ? "detail":"home", id: view.id}; render(); });
+      document.getElementById("fName").addEventListener("input", e => {
+        draft.name = e.target.value;
+        if(!view.id){
+          draft.colorHex = colorForName(draft.name);
+          const wrap = document.getElementById("logoPreviewWrap");
+          if(wrap) wrap.innerHTML = badgeHTML({name:draft.name, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId});
+        }
+        updateSaveButtonState();
+      });
+      document.getElementById("fPrice").addEventListener("input", e => {
+        const filtered = e.target.value.replace(/\D/g,"").slice(0,7);
+        draft.priceYen = filtered;
+        if(e.target.value !== filtered) e.target.value = filtered;
+        updateSaveButtonState();
+      });
+      root.querySelectorAll("#segCycle button").forEach(b => b.addEventListener("click", () => { draft.cycle = b.getAttribute("data-val"); render(); }));
+      root.querySelectorAll("#segRule button").forEach(b => b.addEventListener("click", () => { draft.cancelRule = b.getAttribute("data-val"); render(); }));
+      document.getElementById("btnDate").addEventListener("click", () => document.getElementById("fDate").showPicker ? document.getElementById("fDate").showPicker() : document.getElementById("fDate").click());
+      document.getElementById("fDate").addEventListener("change", e => { if(e.target.value){ draft.anchorDate = e.target.value; render(); } });
+      const pickLogo = document.getElementById("btnPickLogo");
+      if(pickLogo) pickLogo.addEventListener("click", () => document.getElementById("fLogo").click());
+      const fLogo = document.getElementById("fLogo");
+      if(fLogo) fLogo.addEventListener("change", async e => {
+        const file = e.target.files[0];
+        if(!file || !assetsApi) return;
+        pickLogo.disabled = true; pickLogo.textContent = "アップロード中…";
+        try{
+          const result = await assetsApi.upload(file);
+          draft.logoAssetId = result.id;
+        }catch(err){
+          alert("画像のアップロードに失敗しました。もう一度お試しください。");
+        }
+        render();
+      });
+      const removeLogo = document.getElementById("btnRemoveLogo");
+      if(removeLogo) removeLogo.addEventListener("click", () => { draft.logoAssetId = null; render(); });
+      const saveBtn = document.getElementById("btnSave");
+      if(saveBtn) saveBtn.addEventListener("click", () => {
+        const price = parseInt(draft.priceYen,10)||0;
+        if(!(draft.name.trim().length>0 && price>0)) return;
+        if(view.id){
+          const idx = subs.findIndex(s=>s.id===view.id);
+          subs[idx] = {id:view.id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex:draft.colorHex, logoAssetId:draft.logoAssetId||null};
+          saveSubs(subs);
+          recordCurrentMonth();
+          const backTo = view.id;
+          draft = null; view = {screen:"detail", id:backTo}; render();
+        } else {
+          const id = "s"+Date.now();
+          subs.push({id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex: colorForName(draft.name), logoAssetId:draft.logoAssetId||null});
+          saveSubs(subs);
+          recordCurrentMonth();
+          draft = null; view = {screen:"home", id:null}; render();
+        }
+      });
+    }
+    else if(view.screen === "detail"){
+      document.getElementById("btnBack").addEventListener("click", () => { view = {screen:"home", id:null}; render(); });
+      document.getElementById("btnEdit").addEventListener("click", () => { draft = null; view = {screen:"addEdit", id: view.id}; render(); });
+      document.getElementById("btnEdit2").addEventListener("click", () => { draft = null; view = {screen:"addEdit", id: view.id}; render(); });
+      document.getElementById("btnDelete").addEventListener("click", () => { document.getElementById("deleteOverlay").hidden = false; });
+      document.getElementById("btnCancelDelete").addEventListener("click", () => { document.getElementById("deleteOverlay").hidden = true; });
+      document.getElementById("btnConfirmDelete").addEventListener("click", () => {
+        subs = subs.filter(s => s.id !== view.id);
+        saveSubs(subs);
+        recordCurrentMonth();
+        view = {screen:"home", id:null}; render();
+      });
+    }
+    else if(view.screen === "calendar"){
+      document.getElementById("btnHome").addEventListener("click", () => { view = {screen:"home", id:null}; render(); });
+      document.getElementById("btnGoTrend").addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
+      document.getElementById("calPrev").addEventListener("click", () => {
+        const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), -1);
+        calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
+        render();
+      });
+      document.getElementById("calNext").addEventListener("click", () => {
+        const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), 1);
+        calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
+        render();
+      });
+      document.getElementById("calToday").addEventListener("click", () => {
+        const t = startOfToday();
+        calState.year = t.getFullYear(); calState.month = t.getMonth(); calState.selected = toISO(t);
+        render();
+      });
+      root.querySelectorAll("[data-day]").forEach(el => el.addEventListener("click", () => {
+        calState.selected = el.getAttribute("data-day"); render();
+      }));
+      root.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => {
+        view = {screen:"detail", id: el.getAttribute("data-detail")}; render();
+      }));
+    }
+    else if(view.screen === "trend"){
+      document.getElementById("btnHome").addEventListener("click", () => { view = {screen:"home", id:null}; render(); });
+      document.getElementById("btnGoCalendar").addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
+      root.querySelectorAll("#segTrendRange button").forEach(b => b.addEventListener("click", () => { trendRange = b.getAttribute("data-val"); render(); }));
+      const svg = document.getElementById("trendSvg");
+      const tooltip = document.getElementById("trendTooltip");
+      const crosshair = document.getElementById("trendCrosshair");
+      if(svg && trendEntries.length){
+        const pointFromEvent = evt => {
+          const pt = svg.createSVGPoint();
+          pt.x = evt.clientX; pt.y = evt.clientY;
+          const ctm = svg.getScreenCTM();
+          return ctm ? pt.matrixTransform(ctm.inverse()) : null;
+        };
+        const show = evt => {
+          const p = pointFromEvent(evt);
+          if(!p) return;
+          let nearest = trendEntries[0], nd = Infinity;
+          trendEntries.forEach(e => { const d = Math.abs(e.x - p.x); if(d < nd){ nd = d; nearest = e; } });
+          if(crosshair){ crosshair.setAttribute("x1", nearest.x); crosshair.setAttribute("x2", nearest.x); crosshair.removeAttribute("hidden"); }
+          if(tooltip){
+            tooltip.hidden = false;
+            tooltip.style.left = (nearest.x / TREND_W * 100) + "%";
+            tooltip.style.top = Math.max(6, (nearest.y / TREND_H * 100)) + "%";
+            tooltip.querySelector(".tt-label").textContent = nearest.label;
+            tooltip.querySelector(".tt-value").textContent = formatYen(nearest.value);
+          }
+        };
+        const hide = () => { if(crosshair) crosshair.setAttribute("hidden",""); if(tooltip) tooltip.hidden = true; };
+        svg.addEventListener("pointermove", show);
+        svg.addEventListener("pointerdown", show);
+        svg.addEventListener("pointerleave", hide);
+      }
+    }
+  }
+
+  render();
+})();
+</script>
