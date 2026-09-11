@@ -209,6 +209,9 @@
   .logo-btn{ border:1.4px solid var(--rule); background:var(--paper); border-radius:8px; padding:9px 13px;
     font-size:12px; font-weight:700; color:var(--ink); cursor:pointer; }
   .logo-btn.logo-remove{ color:var(--stamp); border-color:var(--stamp-soft); }
+  .color-swatch-btn{ position:relative; width:38px; height:38px; border-radius:9px; border:1.4px solid var(--rule);
+    cursor:pointer; display:inline-block; flex-shrink:0; overflow:hidden; }
+  .color-swatch-btn input[type=color]{ position:absolute; inset:0; width:100%; height:100%; opacity:0; cursor:pointer; border:none; padding:0; }
 
   /* ---------- detail ---------- */
   .detail-body{ padding:22px 20px 26px; }
@@ -440,7 +443,7 @@
       if(raw) list = JSON.parse(raw);
     }catch(e){}
     if(list){
-      list = list.map(s => s.logoDataUrl ? s : Object.assign({}, s, {colorHex: colorForName(s.name)}));
+      list = list.map(s => (s.logoDataUrl || s.colorManual) ? s : Object.assign({}, s, {colorHex: colorForName(s.name)}));
       saveSubs(list);
       return list;
     }
@@ -548,13 +551,14 @@
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
   /** サービスのロゴ画像(アップロード済みなら)か、頭文字バッジをHTMLとして返す。
-   *  ロゴ画像は丸く切り抜かず(object-fit:contain)実際の形のまま収める。画像が壊れていた場合は自動で頭文字に戻る。 */
+   *  ロゴ画像がある場合は、頭文字バッジの色が縁からはみ出して見えないよう背景を透明にする。
+   *  ロゴ画像は丸く切り抜かず(object-fit:contain)実際の形のまま収める。画像が壊れていた場合は自動で色付きの頭文字に戻る。 */
   function badgeHTML(sub, extraClass){
     const initial = esc((sub.name.trim()[0]||"?").toUpperCase());
     const src = sub.logoDataUrl || null;
-    return `<div class="badge${extraClass?(" "+extraClass):""}" style="background:${sub.colorHex}">
+    return `<div class="badge${extraClass?(" "+extraClass):""}" style="background:${src?"transparent":sub.colorHex}">
       <span${src?' style="display:none"':""}>${initial}</span>
-      ${src ? `<img src="${src}" alt="" onerror="this.remove();this.previousElementSibling.style.display='';">` : ""}
+      ${src ? `<img src="${src}" alt="" onerror="this.remove();this.previousElementSibling.style.display='';this.parentElement.style.background='${sub.colorHex}';">` : ""}
     </div>`;
   }
 
@@ -720,10 +724,10 @@
       draft = existing ? {
         _id:id, name:existing.name, priceYen:String(existing.priceYen), cycle:existing.cycle,
         anchorDate:existing.anchorDate, cancelRule:existing.cancelRule, colorHex:existing.colorHex,
-        logoDataUrl:existing.logoDataUrl||null
+        colorManual:true, logoDataUrl:existing.logoDataUrl||null
       } : {
         _id:"__new__", name:"", priceYen:"", cycle:"monthly", anchorDate:toISO(startOfToday()),
-        cancelRule:"day_before", colorHex:colorForName(""), logoDataUrl:null
+        cancelRule:"day_before", colorHex:colorForName(""), colorManual:false, logoDataUrl:null
       };
     }
     const isIrregular = draft.cycle === "irregular";
@@ -753,6 +757,9 @@
             <div id="logoPreviewWrap">${badgeHTML({name:draft.name, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl})}</div>
             <button type="button" class="logo-btn" id="btnPickLogo">${draft.logoDataUrl ? "画像を変更" : "画像を選択"}</button>
             ${draft.logoDataUrl ? `<button type="button" class="logo-btn logo-remove" id="btnRemoveLogo">削除</button>` : ""}
+            <label class="color-swatch-btn" title="バッジの色を選ぶ" style="background:${draft.colorHex}">
+              <input type="color" id="fColor" value="${draft.colorHex}">
+            </label>
           </div>
           <input type="file" id="fLogo" accept="image/png,image/jpeg,image/webp,image/gif" style="display:none">
         </div>
@@ -1255,12 +1262,25 @@
       document.getElementById("btnBack").addEventListener("click", () => { draft = null; view = {screen: view.id ? "detail":"home", id: view.id}; render(); });
       document.getElementById("fName").addEventListener("input", e => {
         draft.name = e.target.value;
-        if(!view.id){
+        if(!view.id && !draft.colorManual){
           draft.colorHex = colorForName(draft.name);
           const wrap = document.getElementById("logoPreviewWrap");
           if(wrap) wrap.innerHTML = badgeHTML({name:draft.name, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl});
+          const fColor = document.getElementById("fColor");
+          if(fColor) fColor.value = draft.colorHex;
+          const swatchBtn = document.querySelector(".color-swatch-btn");
+          if(swatchBtn) swatchBtn.style.background = draft.colorHex;
         }
         updateSaveButtonState();
+      });
+      const fColor = document.getElementById("fColor");
+      if(fColor) fColor.addEventListener("input", e => {
+        draft.colorHex = e.target.value;
+        draft.colorManual = true;
+        const wrap = document.getElementById("logoPreviewWrap");
+        if(wrap) wrap.innerHTML = badgeHTML({name:draft.name, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl});
+        const swatchBtn = fColor.closest(".color-swatch-btn");
+        if(swatchBtn) swatchBtn.style.background = draft.colorHex;
       });
       document.getElementById("fPrice").addEventListener("input", e => {
         const filtered = e.target.value.replace(/\D/g,"").slice(0,7);
@@ -1296,14 +1316,14 @@
         if(!(draft.name.trim().length>0 && price>0)) return;
         if(view.id){
           const idx = subs.findIndex(s=>s.id===view.id);
-          subs[idx] = {id:view.id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex:draft.colorHex, logoDataUrl:draft.logoDataUrl||null};
+          subs[idx] = {id:view.id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex:draft.colorHex, colorManual:draft.colorManual, logoDataUrl:draft.logoDataUrl||null};
           saveSubs(subs);
           recordCurrentMonth();
           const backTo = view.id;
           draft = null; view = {screen:"detail", id:backTo}; render();
         } else {
           const id = "s"+Date.now();
-          subs.push({id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex: colorForName(draft.name), logoDataUrl:draft.logoDataUrl||null});
+          subs.push({id, name:draft.name.trim(), priceYen:price, cycle:draft.cycle, anchorDate:draft.anchorDate, cancelRule:draft.cancelRule, colorHex: draft.colorHex, colorManual:draft.colorManual, logoDataUrl:draft.logoDataUrl||null});
           saveSubs(subs);
           recordCurrentMonth();
           draft = null; view = {screen:"home", id:null}; render();
