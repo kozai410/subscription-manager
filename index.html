@@ -3,6 +3,9 @@
 <title>サブスク管理アプリ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;500;700;900&display=swap">
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --canvas:#e9e4d6;
@@ -152,7 +155,9 @@
 
   .empty-hint{ background:var(--paper-deep); border-radius:12px; padding:20px; font-size:12.5px; color:var(--ink-soft); text-align:center; }
 
-  .backup-row{ display:flex; justify-content:center; align-items:center; gap:8px; margin-top:22px; }
+  .cloud-row{ display:flex; justify-content:center; align-items:center; gap:10px; margin-top:22px; }
+  .cloud-status{ font-size:11px; color:var(--ink-faint); }
+  .backup-row{ display:flex; justify-content:center; align-items:center; gap:8px; margin-top:10px; }
   .backup-link{ background:none; border:none; font-size:11px; color:var(--ink-faint); font-weight:700; cursor:pointer; padding:4px; font:inherit; }
   .backup-link:hover{ color:var(--ink-soft); }
   .backup-sep{ font-size:11px; color:var(--ink-faint); }
@@ -429,7 +434,7 @@
     saveSubs(seed);
     return seed;
   }
-  function saveSubs(list){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }catch(e){} }
+  function saveSubs(list){ try{ localStorage.setItem(STORE_KEY, JSON.stringify(list)); }catch(e){} pushToCloud(); }
 
   /** 毎月の「合計(月換算)」を記録する履歴。過去分は上書きしない(その月が終わった時点の値のまま固定)。
    *  今月分だけは、開くたびに最新の内容で上書きする。 */
@@ -438,7 +443,62 @@
     try{ const raw = localStorage.getItem(HISTORY_KEY); if(raw) return JSON.parse(raw); }catch(e){}
     return {};
   }
-  function saveHistory(h){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }catch(e){} }
+  function saveHistory(h){ try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(h)); }catch(e){} pushToCloud(); }
+
+  /* ---------------- Firebase(Googleログイン + クラウド同期) ----------------
+     gstatic.com からのSDK読み込みはGitHub Pagesなど普通のWebページでのみ許可される
+     (Claude Artifact上ではCSPでブロックされ firebase が未定義のままになる)。
+     読み込めない・ログインしていない場合は、これまで通りlocalStorageだけで動く。 */
+  const firebaseConfig = {
+    apiKey: "AIzaSyB1A7aA4m0CFiSYp1IR49evj_663n6GrV8",
+    authDomain: "subscription-manager-3039e.firebaseapp.com",
+    projectId: "subscription-manager-3039e",
+    storageBucket: "subscription-manager-3039e.firebasestorage.app",
+    messagingSenderId: "1090576761174",
+    appId: "1:1090576761174:web:b11ba8d2eca33a6b8ed6f7"
+  };
+  let firebaseReady = false, fbAuth = null, fbDb = null, cloudUser = null, cloudUnsub = null;
+
+  function initFirebaseSafe(){
+    try{
+      if(typeof firebase === "undefined") return;
+      firebase.initializeApp(firebaseConfig);
+      fbAuth = firebase.auth();
+      fbDb = firebase.firestore();
+      firebaseReady = true;
+      fbAuth.onAuthStateChanged(user => {
+        cloudUser = user;
+        if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
+        if(user) attachCloudSync(user.uid);
+        render();
+      });
+    }catch(e){ firebaseReady = false; }
+  }
+
+  /** サインイン中のアカウントのFirestoreドキュメントを購読する。
+   *  まだドキュメントが無ければ(=このアカウントで初めての同期)、今この端末にあるデータをそのままアップロードする。 */
+  function attachCloudSync(uid){
+    const ref = fbDb.collection("users").doc(uid);
+    cloudUnsub = ref.onSnapshot(snap => {
+      if(snap.exists){
+        const data = snap.data() || {};
+        subs = Array.isArray(data.subs) ? data.subs : subs;
+        history = (data.history && typeof data.history === "object") ? data.history : history;
+        try{ localStorage.setItem(STORE_KEY, JSON.stringify(subs)); }catch(e){}
+        try{ localStorage.setItem(HISTORY_KEY, JSON.stringify(history)); }catch(e){}
+        render();
+      } else {
+        ref.set({ subs, history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }).catch(()=>{});
+      }
+    }, () => {});
+  }
+
+  function pushToCloud(){
+    if(!cloudUser || !fbDb) return;
+    fbDb.collection("users").doc(cloudUser.uid)
+      .set({ subs, history, updatedAt: firebase.firestore.FieldValue.serverTimestamp() })
+      .catch(()=>{});
+  }
   function monthKey(d){ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0"); }
   function recordCurrentMonth(){
     const key = monthKey(startOfToday());
@@ -501,6 +561,7 @@
   recordCurrentMonth();
   let view = {screen:"home", id:null};
   const root = document.getElementById("app");
+  initFirebaseSafe();
 
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
@@ -639,6 +700,15 @@
               </button>
             `).join("")}
           </div>`}
+
+          ${firebaseReady ? (cloudUser ? `
+          <div class="cloud-row">
+            <span class="cloud-status">${esc(cloudUser.email||"")} で同期中</span>
+            <button class="backup-link" id="btnCloudSignOut">ログアウト</button>
+          </div>` : `
+          <div class="cloud-row">
+            <button class="backup-link" id="btnCloudSignIn">Googleでログインしてクラウド同期</button>
+          </div>`) : ""}
 
           <div class="backup-row">
             <button class="backup-link" id="btnExport">バックアップを保存</button>
@@ -1071,6 +1141,16 @@
       if(cal) cal.addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
       const trendBtn = document.getElementById("btnTrend");
       if(trendBtn) trendBtn.addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
+      const cloudSignIn = document.getElementById("btnCloudSignIn");
+      if(cloudSignIn) cloudSignIn.addEventListener("click", () => {
+        if(!fbAuth) return;
+        const provider = new firebase.auth.GoogleAuthProvider();
+        fbAuth.signInWithPopup(provider).catch(err => {
+          alert("ログインに失敗しました。もう一度お試しください。");
+        });
+      });
+      const cloudSignOut = document.getElementById("btnCloudSignOut");
+      if(cloudSignOut) cloudSignOut.addEventListener("click", () => { if(fbAuth) fbAuth.signOut(); });
       const exportBtn = document.getElementById("btnExport");
       if(exportBtn) exportBtn.addEventListener("click", () => { exportBackup(); });
       const importPick = document.getElementById("btnImportPick");
