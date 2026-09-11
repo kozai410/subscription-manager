@@ -8,8 +8,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
-    --canvas:#e9e4d6;
-    --canvas-edge:#ddd6c2;
     --paper:#ffffff;
     --paper-deep:#f6f6f3;
     --card:#ffffff;
@@ -33,14 +31,11 @@
     --annual-border:#e9daac;
     --font-display:"Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
     --font-body:"Zen Kaku Gothic New", "Hiragino Sans", sans-serif;
-    --shell-w:448px;
   }
   *{box-sizing:border-box;}
   body{
     margin:0;
-    background:var(--canvas);
-    background-image:radial-gradient(circle at 20% 8%, var(--canvas-edge), transparent 60%),
-                      radial-gradient(circle at 85% 92%, var(--canvas-edge), transparent 55%);
+    background:var(--paper);
     color:var(--ink);
     font-family:var(--font-body);
     display:flex;
@@ -50,26 +45,37 @@
   }
   .app-frame{
     width:100%;
-    max-width:var(--shell-w);
     min-height:100vh;
     background:var(--paper);
-    box-shadow:0 30px 60px -25px rgba(22,38,61,0.35), 0 0 0 1px rgba(22,38,61,0.04);
     position:relative;
     display:flex;
     flex-direction:column;
   }
-  @media (min-width:520px){
-    body{ padding:40px 16px; }
-    .app-frame{ min-height:min(860px, calc(100vh - 80px)); border-radius:18px; overflow:hidden; }
+
+  /* ---------- desktop dashboard (>=900px): full-width, calendar + trend combined with home ---------- */
+  .dashboard{ display:none; }
+  @media (min-width:900px){
+    .dashboard{
+      display:block; max-width:1500px; margin:0 auto; padding:32px 40px 56px;
+    }
+    .dash-topbar{
+      display:flex; align-items:center; justify-content:space-between; gap:20px;
+      background:linear-gradient(180deg, var(--cover), var(--cover-deep)); color:var(--cover-ink);
+      padding:22px 28px; border-radius:16px;
+    }
+    .dash-topbar .eyebrow{ font-size:11px; letter-spacing:.14em; color:var(--gold); font-weight:700; text-transform:uppercase; margin:0 0 4px; }
+    .dash-topbar h1{ font-family:var(--font-display); font-weight:700; font-size:22px; margin:0; }
+    .dash-count{ font-size:11.5px; color:var(--gold); margin-top:6px; }
+    .dash-add-btn{ background:#fff; color:var(--ink); border:none; border-radius:10px; padding:13px 22px;
+      font-weight:700; font-size:14px; cursor:pointer; display:flex; align-items:center; gap:8px; flex-shrink:0; }
+    .dash-add-btn:hover{ filter:brightness(0.96); }
+    .dash-grid{ display:grid; grid-template-columns:minmax(320px,440px) 1fr; gap:24px; align-items:start; margin-top:24px; }
+    .dash-col-right{ display:grid; grid-template-columns:1fr; gap:24px; align-items:start; }
+    .dash-panel{ background:var(--paper); border:1px solid var(--rule); border-radius:16px; padding:22px; }
+    .dash-panel-title{ font-family:var(--font-display); font-weight:700; font-size:14px; margin:0 0 16px; }
   }
-  @media (min-width:700px){
-    :root{ --shell-w:620px; }
-    .app-frame{ min-height:min(900px, calc(100vh - 60px)); }
-  }
-  @media (min-width:1100px){
-    :root{ --shell-w:760px; }
-    body{ padding:56px 16px; }
-    .app-frame{ min-height:min(940px, calc(100vh - 40px)); }
+  @media (min-width:1280px){
+    .dash-col-right{ grid-template-columns:1fr 1fr; }
   }
 
   button{ font-family:inherit; }
@@ -268,14 +274,6 @@
   .cal-event .info{ flex:1; min-width:0; }
   .cal-event .name{ font-size:13px; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .cal-event .price{ font-size:12px; color:var(--ink-faint); margin-top:2px; }
-
-  @media (min-width:700px){
-    .cal-cell .daynum{ font-size:13px; top:7px; left:9px; }
-    .badge-xs{ width:22px; height:22px; border-radius:6px; font-size:9px; }
-    .cal-mini-badge{ border-radius:7px; box-shadow:0 0 0 2.5px var(--stamp); }
-    .cal-mini-extra{ font-size:10px; }
-    .cal-grid{ gap:6px; }
-  }
 
   /* ---------- trend (spending over time) ---------- */
   .trend-body{ padding:18px 18px 26px; }
@@ -541,6 +539,12 @@
   const root = document.getElementById("app");
   initFirebaseSafe();
 
+  /** PC幅(>=900px)では、ホーム・カレンダー・支出推移を1ページにまとめたダッシュボード表示にする。
+   *  ウィンドウ幅がこのしきい値をまたいで変わったときにも自動で切り替わるようにする。 */
+  const DESKTOP_MQ = window.matchMedia("(min-width: 900px)");
+  function isDesktopMode(){ return DESKTOP_MQ.matches; }
+  DESKTOP_MQ.addEventListener("change", () => render());
+
   function esc(s){ return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
   /** サービスのロゴ画像(アップロード済みなら)か、頭文字バッジをHTMLとして返す。
@@ -592,7 +596,9 @@
   }
 
   function render(){
-    if(view.screen === "home") root.innerHTML = homeHTML();
+    const combinable = view.screen === "home" || view.screen === "calendar" || view.screen === "trend";
+    if(isDesktopMode() && combinable) root.innerHTML = dashboardHTML();
+    else if(view.screen === "home") root.innerHTML = homeHTML();
     else if(view.screen === "addEdit") root.innerHTML = formHTML(view.id);
     else if(view.screen === "calendar") root.innerHTML = calendarHTML();
     else if(view.screen === "trend") root.innerHTML = trendHTML();
@@ -601,7 +607,9 @@
   }
 
   /* ---------------- HOME ---------------- */
-  function homeHTML(){
+  /** ホーム画面の中身(合計カード・年額/月額の一覧・クラウド同期)。
+   *  スマホ版(homeHTML)とPC版ダッシュボード(dashboardHTML)の両方から呼ばれる。 */
+  function homeBodyHTML(){
     const today = startOfToday();
     const models = subs.map(s => toUiModel(s, today));
     const monthly = models.filter(m => m.cycle === "monthly").sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
@@ -609,6 +617,72 @@
       .sort((a,b)=>a.recommendedCancelDate-b.recommendedCancelDate);
     const { monthlySub, annualEq, grand } = computeTotals(models);
 
+    return `
+      <div class="receipt-card">
+        <div class="receipt-label">今月のご利用明細</div>
+        <div class="tot-row"><span class="label">月額サブスク 小計</span><span class="dash"></span><span class="val">${formatYen(monthlySub)}</span></div>
+        <div class="tot-row"><span class="label">年額サブスク(月割)</span><span class="dash"></span><span class="val">${formatYen(annualEq)}</span></div>
+        <div class="tot-row grand"><span class="label">合計(月換算)</span><span class="val">${formatYen(grand)}</span></div>
+      </div>
+
+      ${annual.length ? `
+      <div style="margin-top:14px" class="annual-box">
+        <div class="annual-head">
+          <div class="left" style="display:flex;align-items:center;gap:7px;">
+            <div class="tag-chip" style="background:var(--accent)">年</div>
+            <h2 style="font-size:12.5px;font-family:var(--font-display);font-weight:700;margin:0;">年額のサブスク</h2>
+          </div>
+          <span class="warn">請求頻度が低く見逃し注意</span>
+        </div>
+        ${annual.map(m => `
+          <button class="annual-row" data-detail="${m.id}">
+            ${badgeHTML(m)}
+            <div class="info">
+              <div class="name">${esc(m.name)}</div>
+              <div class="meta">次回請求 ${formatMonthDay(m.nextBillingDate)}・解約目安 ${formatMonthDay(m.recommendedCancelDate)}</div>
+            </div>
+            <div class="side">
+              <div class="price">${formatYen(m.priceYen)}</div>
+              <span class="pill-outline">${formatRelDays(diffDays(m.nextBillingDate, today))}</span>
+            </div>
+          </button>
+        `).join("")}
+      </div>` : ""}
+
+      <div class="section-head">
+        <div class="left"><div class="tag-chip" style="background:var(--accent)">月</div><h2>月額のサブスク</h2></div>
+        <span class="note">解約目安が近い順</span>
+      </div>
+
+      ${monthly.length === 0 ? `<div class="empty-hint">月額のサブスクはまだありません。下の「追加する」から登録できます。</div>` : `
+      <div class="list-card">
+        ${monthly.map(m => `
+          <button class="sub-row" data-detail="${m.id}">
+            ${badgeHTML(m)}
+            <div class="info">
+              <div class="name">${esc(m.name)}</div>
+              <div class="meta">月額・次回請求 ${formatMonthDay(m.nextBillingDate)}</div>
+            </div>
+            <div class="side">
+              <div class="price">${formatYen(m.priceYen)}</div>
+              <span class="urg-chip urg-${m.urgency}">解約目安 ${formatMonthDay(m.recommendedCancelDate)}</span>
+            </div>
+          </button>
+        `).join("")}
+      </div>`}
+
+      ${firebaseReady ? (cloudUser ? `
+      <div class="cloud-row">
+        <span class="cloud-status">${esc(cloudUser.email||"")} で同期中</span>
+        <button class="backup-link" id="btnCloudSignOut">ログアウト</button>
+      </div>` : `
+      <div class="cloud-row">
+        <button class="backup-link" id="btnCloudSignIn">Googleでログインしてクラウド同期</button>
+      </div>`) : ""}
+    `;
+  }
+
+  function homeHTML(){
     return `
     <div class="screen">
       <div class="cover-bar">
@@ -623,72 +697,11 @@
           </div>
         </div>
         <div class="cover-thread"></div>
-        <div style="margin-top:8px;font-size:11.5px;color:var(--gold)">${models.length}件を管理中</div>
+        <div style="margin-top:8px;font-size:11.5px;color:var(--gold)">${subs.length}件を管理中</div>
       </div>
       <div class="scroll">
         <div class="home-body">
-          <div class="receipt-card">
-            <div class="receipt-label">今月のご利用明細</div>
-            <div class="tot-row"><span class="label">月額サブスク 小計</span><span class="dash"></span><span class="val">${formatYen(monthlySub)}</span></div>
-            <div class="tot-row"><span class="label">年額サブスク(月割)</span><span class="dash"></span><span class="val">${formatYen(annualEq)}</span></div>
-            <div class="tot-row grand"><span class="label">合計(月換算)</span><span class="val">${formatYen(grand)}</span></div>
-          </div>
-
-          ${annual.length ? `
-          <div style="margin-top:14px" class="annual-box">
-            <div class="annual-head">
-              <div class="left" style="display:flex;align-items:center;gap:7px;">
-                <div class="tag-chip" style="background:var(--accent)">年</div>
-                <h2 style="font-size:12.5px;font-family:var(--font-display);font-weight:700;margin:0;">年額のサブスク</h2>
-              </div>
-              <span class="warn">請求頻度が低く見逃し注意</span>
-            </div>
-            ${annual.map(m => `
-              <button class="annual-row" data-detail="${m.id}">
-                ${badgeHTML(m)}
-                <div class="info">
-                  <div class="name">${esc(m.name)}</div>
-                  <div class="meta">次回請求 ${formatMonthDay(m.nextBillingDate)}・解約目安 ${formatMonthDay(m.recommendedCancelDate)}</div>
-                </div>
-                <div class="side">
-                  <div class="price">${formatYen(m.priceYen)}</div>
-                  <span class="pill-outline">${formatRelDays(diffDays(m.nextBillingDate, today))}</span>
-                </div>
-              </button>
-            `).join("")}
-          </div>` : ""}
-
-          <div class="section-head">
-            <div class="left"><div class="tag-chip" style="background:var(--accent)">月</div><h2>月額のサブスク</h2></div>
-            <span class="note">解約目安が近い順</span>
-          </div>
-
-          ${monthly.length === 0 ? `<div class="empty-hint">月額のサブスクはまだありません。下の「追加する」から登録できます。</div>` : `
-          <div class="list-card">
-            ${monthly.map(m => `
-              <button class="sub-row" data-detail="${m.id}">
-                ${badgeHTML(m)}
-                <div class="info">
-                  <div class="name">${esc(m.name)}</div>
-                  <div class="meta">月額・次回請求 ${formatMonthDay(m.nextBillingDate)}</div>
-                </div>
-                <div class="side">
-                  <div class="price">${formatYen(m.priceYen)}</div>
-                  <span class="urg-chip urg-${m.urgency}">解約目安 ${formatMonthDay(m.recommendedCancelDate)}</span>
-                </div>
-              </button>
-            `).join("")}
-          </div>`}
-
-          ${firebaseReady ? (cloudUser ? `
-          <div class="cloud-row">
-            <span class="cloud-status">${esc(cloudUser.email||"")} で同期中</span>
-            <button class="backup-link" id="btnCloudSignOut">ログアウト</button>
-          </div>` : `
-          <div class="cloud-row">
-            <button class="backup-link" id="btnCloudSignIn">Googleでログインしてクラウド同期</button>
-          </div>`) : ""}
-
+          ${homeBodyHTML()}
           <div style="height:8px"></div>
         </div>
       </div>
@@ -875,7 +888,8 @@
     }
   }
 
-  function calendarHTML(){
+  /** カレンダー画面の中身。スマホ版(calendarHTML)とPC版ダッシュボード(dashboardHTML)の両方から呼ばれる。 */
+  function calendarBodyHTML(){
     ensureCalState();
     const { year, month } = calState;
     const today = startOfToday();
@@ -927,15 +941,6 @@
     const selectedDateObj = calState.selected ? fromISO(calState.selected) : null;
 
     return `
-    <div class="screen">
-      <div class="cover-bar" style="padding:10px 8px;">
-        <div class="cover-row">
-          <div class="cover-title">カレンダー</div>
-          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
-          <button class="icon-btn" id="btnGoTrend" aria-label="支出の推移">${iconChart()}</button>
-        </div>
-      </div>
-      <div class="scroll"><div class="cal-body">
         <div class="cal-nav">
           <button class="cal-navbtn" id="calPrev" aria-label="前の月">‹</button>
           <div style="text-align:center;">
@@ -977,7 +982,20 @@
             </button>
           `).join("")}
         </div>
-      </div></div>
+    `;
+  }
+
+  function calendarHTML(){
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:10px 8px;">
+        <div class="cover-row">
+          <div class="cover-title">カレンダー</div>
+          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
+          <button class="icon-btn" id="btnGoTrend" aria-label="支出の推移">${iconChart()}</button>
+        </div>
+      </div>
+      <div class="scroll"><div class="cal-body">${calendarBodyHTML()}</div></div>
     </div>`;
   }
 
@@ -1005,7 +1023,8 @@
     return nice*base;
   }
 
-  function trendHTML(){
+  /** 支出推移画面の中身。スマホ版(trendHTML)とPC版ダッシュボード(dashboardHTML)の両方から呼ばれる。 */
+  function trendBodyHTML(){
     recordCurrentMonth();
     const allEntries = Object.keys(history).sort().map(key => {
       const [y,m] = key.split("-").map(Number);
@@ -1059,15 +1078,6 @@
     `).join("");
 
     return `
-    <div class="screen">
-      <div class="cover-bar" style="padding:10px 8px;">
-        <div class="cover-row">
-          <div class="cover-title">支出の推移</div>
-          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
-          <button class="icon-btn" id="btnGoCalendar" aria-label="カレンダー">${iconCalendar()}</button>
-        </div>
-      </div>
-      <div class="scroll"><div class="trend-body">
         <p class="trend-note">毎月の「合計(月換算)」を自動で記録します。今月分は開くたびに最新の内容へ更新され、月が変わると値が固定されます。</p>
         <div class="seg" id="segTrendRange" style="margin-bottom:14px;">
           <button type="button" class="${trendRange==='all'?'on':''}" data-val="all">全て</button>
@@ -1086,7 +1096,50 @@
 
         <p class="trend-list-title">月ごとの記録</p>
         <div class="ledger">${listHTML}</div>
-      </div></div>
+    `;
+  }
+
+  function trendHTML(){
+    return `
+    <div class="screen">
+      <div class="cover-bar" style="padding:10px 8px;">
+        <div class="cover-row">
+          <div class="cover-title">支出の推移</div>
+          <button class="icon-btn" id="btnHome" aria-label="ホーム">${iconHome()}</button>
+          <button class="icon-btn" id="btnGoCalendar" aria-label="カレンダー">${iconCalendar()}</button>
+        </div>
+      </div>
+      <div class="scroll"><div class="trend-body">${trendBodyHTML()}</div></div>
+    </div>`;
+  }
+
+  /* ---------------- DESKTOP DASHBOARD (>=900px) ----------------
+     ホーム・カレンダー・支出推移を1ページにまとめて表示する。追加/編集・詳細画面は
+     スマホと同じ専用ページのまま(横幅を絞った1カラム)にする。 */
+  function dashboardHTML(){
+    return `
+    <div class="dashboard">
+      <div class="dash-topbar">
+        <div>
+          <p class="eyebrow">Subscription Manager</p>
+          <h1>サブスク管理アプリ</h1>
+          <div class="dash-count">${subs.length}件を管理中</div>
+        </div>
+        <button class="dash-add-btn" id="btnAdd">＋　追加する</button>
+      </div>
+      <div class="dash-grid">
+        <div class="dash-panel">${homeBodyHTML()}</div>
+        <div class="dash-col-right">
+          <div class="dash-panel">
+            <h2 class="dash-panel-title">カレンダー</h2>
+            ${calendarBodyHTML()}
+          </div>
+          <div class="dash-panel">
+            <h2 class="dash-panel-title">支出の推移</h2>
+            ${trendBodyHTML()}
+          </div>
+        </div>
+      </div>
     </div>`;
   }
 
@@ -1107,27 +1160,96 @@
   }
 
   /* ---------------- wiring ---------------- */
+  /** サブスクの詳細に飛ぶリンクは、ホーム・カレンダーどちらの中身にも出てくるので共通化する。
+   *  ダッシュボード表示では両方が同時にDOMにあるので、これを1回だけ呼べば両方分をまとめて配線できる。 */
+  function wireDataDetailLinks(){
+    root.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => {
+      view = {screen:"detail", id: el.getAttribute("data-detail")}; render();
+    }));
+  }
+  function wireHomeExtras(){
+    const add = document.getElementById("btnAdd");
+    if(add) add.addEventListener("click", () => { draft = null; view = {screen:"addEdit", id:null}; render(); });
+    const cloudSignIn = document.getElementById("btnCloudSignIn");
+    if(cloudSignIn) cloudSignIn.addEventListener("click", () => {
+      if(!fbAuth) return;
+      const provider = new firebase.auth.GoogleAuthProvider();
+      fbAuth.signInWithPopup(provider).catch(err => {
+        alert("ログインに失敗しました。もう一度お試しください。");
+      });
+    });
+    const cloudSignOut = document.getElementById("btnCloudSignOut");
+    if(cloudSignOut) cloudSignOut.addEventListener("click", () => { if(fbAuth) fbAuth.signOut(); });
+  }
+  function wireCalendarExtras(){
+    document.getElementById("calPrev").addEventListener("click", () => {
+      const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), -1);
+      calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
+      render();
+    });
+    document.getElementById("calNext").addEventListener("click", () => {
+      const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), 1);
+      calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
+      render();
+    });
+    document.getElementById("calToday").addEventListener("click", () => {
+      const t = startOfToday();
+      calState.year = t.getFullYear(); calState.month = t.getMonth(); calState.selected = toISO(t);
+      render();
+    });
+    root.querySelectorAll("[data-day]").forEach(el => el.addEventListener("click", () => {
+      calState.selected = el.getAttribute("data-day"); render();
+    }));
+  }
+  function wireTrendExtras(){
+    root.querySelectorAll("#segTrendRange button").forEach(b => b.addEventListener("click", () => { trendRange = b.getAttribute("data-val"); render(); }));
+    const svg = document.getElementById("trendSvg");
+    const tooltip = document.getElementById("trendTooltip");
+    const crosshair = document.getElementById("trendCrosshair");
+    if(svg && trendEntries.length){
+      const pointFromEvent = evt => {
+        const pt = svg.createSVGPoint();
+        pt.x = evt.clientX; pt.y = evt.clientY;
+        const ctm = svg.getScreenCTM();
+        return ctm ? pt.matrixTransform(ctm.inverse()) : null;
+      };
+      const show = evt => {
+        const p = pointFromEvent(evt);
+        if(!p) return;
+        let nearest = trendEntries[0], nd = Infinity;
+        trendEntries.forEach(e => { const d = Math.abs(e.x - p.x); if(d < nd){ nd = d; nearest = e; } });
+        if(crosshair){ crosshair.setAttribute("x1", nearest.x); crosshair.setAttribute("x2", nearest.x); crosshair.removeAttribute("hidden"); }
+        if(tooltip){
+          tooltip.hidden = false;
+          tooltip.style.left = (nearest.x / TREND_W * 100) + "%";
+          tooltip.style.top = Math.max(6, (nearest.y / TREND_H * 100)) + "%";
+          tooltip.querySelector(".tt-label").textContent = nearest.label;
+          tooltip.querySelector(".tt-value").textContent = formatYen(nearest.value);
+        }
+      };
+      const hide = () => { if(crosshair) crosshair.setAttribute("hidden",""); if(tooltip) tooltip.hidden = true; };
+      svg.addEventListener("pointermove", show);
+      svg.addEventListener("pointerdown", show);
+      svg.addEventListener("pointerleave", hide);
+    }
+  }
+
   function wire(){
+    const combinable = view.screen === "home" || view.screen === "calendar" || view.screen === "trend";
+    if(isDesktopMode() && combinable){
+      wireDataDetailLinks();
+      wireHomeExtras();
+      wireCalendarExtras();
+      wireTrendExtras();
+      return;
+    }
     if(view.screen === "home"){
-      root.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => {
-        view = {screen:"detail", id: el.getAttribute("data-detail")}; render();
-      }));
-      const add = document.getElementById("btnAdd");
-      if(add) add.addEventListener("click", () => { draft = null; view = {screen:"addEdit", id:null}; render(); });
+      wireDataDetailLinks();
+      wireHomeExtras();
       const cal = document.getElementById("btnCalendar");
       if(cal) cal.addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
       const trendBtn = document.getElementById("btnTrend");
       if(trendBtn) trendBtn.addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
-      const cloudSignIn = document.getElementById("btnCloudSignIn");
-      if(cloudSignIn) cloudSignIn.addEventListener("click", () => {
-        if(!fbAuth) return;
-        const provider = new firebase.auth.GoogleAuthProvider();
-        fbAuth.signInWithPopup(provider).catch(err => {
-          alert("ログインに失敗しました。もう一度お試しください。");
-        });
-      });
-      const cloudSignOut = document.getElementById("btnCloudSignOut");
-      if(cloudSignOut) cloudSignOut.addEventListener("click", () => { if(fbAuth) fbAuth.signOut(); });
     }
     else if(view.screen === "addEdit"){
       document.getElementById("btnBack").addEventListener("click", () => { draft = null; view = {screen: view.id ? "detail":"home", id: view.id}; render(); });
@@ -1204,61 +1326,13 @@
     else if(view.screen === "calendar"){
       document.getElementById("btnHome").addEventListener("click", () => { view = {screen:"home", id:null}; render(); });
       document.getElementById("btnGoTrend").addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
-      document.getElementById("calPrev").addEventListener("click", () => {
-        const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), -1);
-        calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
-        render();
-      });
-      document.getElementById("calNext").addEventListener("click", () => {
-        const shifted = addMonthsClamped(ymd(calState.year, calState.month, 1), 1);
-        calState.year = shifted.getFullYear(); calState.month = shifted.getMonth();
-        render();
-      });
-      document.getElementById("calToday").addEventListener("click", () => {
-        const t = startOfToday();
-        calState.year = t.getFullYear(); calState.month = t.getMonth(); calState.selected = toISO(t);
-        render();
-      });
-      root.querySelectorAll("[data-day]").forEach(el => el.addEventListener("click", () => {
-        calState.selected = el.getAttribute("data-day"); render();
-      }));
-      root.querySelectorAll("[data-detail]").forEach(el => el.addEventListener("click", () => {
-        view = {screen:"detail", id: el.getAttribute("data-detail")}; render();
-      }));
+      wireDataDetailLinks();
+      wireCalendarExtras();
     }
     else if(view.screen === "trend"){
       document.getElementById("btnHome").addEventListener("click", () => { view = {screen:"home", id:null}; render(); });
       document.getElementById("btnGoCalendar").addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
-      root.querySelectorAll("#segTrendRange button").forEach(b => b.addEventListener("click", () => { trendRange = b.getAttribute("data-val"); render(); }));
-      const svg = document.getElementById("trendSvg");
-      const tooltip = document.getElementById("trendTooltip");
-      const crosshair = document.getElementById("trendCrosshair");
-      if(svg && trendEntries.length){
-        const pointFromEvent = evt => {
-          const pt = svg.createSVGPoint();
-          pt.x = evt.clientX; pt.y = evt.clientY;
-          const ctm = svg.getScreenCTM();
-          return ctm ? pt.matrixTransform(ctm.inverse()) : null;
-        };
-        const show = evt => {
-          const p = pointFromEvent(evt);
-          if(!p) return;
-          let nearest = trendEntries[0], nd = Infinity;
-          trendEntries.forEach(e => { const d = Math.abs(e.x - p.x); if(d < nd){ nd = d; nearest = e; } });
-          if(crosshair){ crosshair.setAttribute("x1", nearest.x); crosshair.setAttribute("x2", nearest.x); crosshair.removeAttribute("hidden"); }
-          if(tooltip){
-            tooltip.hidden = false;
-            tooltip.style.left = (nearest.x / TREND_W * 100) + "%";
-            tooltip.style.top = Math.max(6, (nearest.y / TREND_H * 100)) + "%";
-            tooltip.querySelector(".tt-label").textContent = nearest.label;
-            tooltip.querySelector(".tt-value").textContent = formatYen(nearest.value);
-          }
-        };
-        const hide = () => { if(crosshair) crosshair.setAttribute("hidden",""); if(tooltip) tooltip.hidden = true; };
-        svg.addEventListener("pointermove", show);
-        svg.addEventListener("pointerdown", show);
-        svg.addEventListener("pointerleave", hide);
-      }
+      wireTrendExtras();
     }
   }
 
