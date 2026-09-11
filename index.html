@@ -152,6 +152,11 @@
 
   .empty-hint{ background:var(--paper-deep); border-radius:12px; padding:20px; font-size:12.5px; color:var(--ink-soft); text-align:center; }
 
+  .backup-row{ display:flex; justify-content:center; align-items:center; gap:8px; margin-top:22px; }
+  .backup-link{ background:none; border:none; font-size:11px; color:var(--ink-faint); font-weight:700; cursor:pointer; padding:4px; font:inherit; }
+  .backup-link:hover{ color:var(--ink-soft); }
+  .backup-sep{ font-size:11px; color:var(--ink-faint); }
+
   .fab-wrap{ position:sticky; bottom:0; padding:14px 18px 18px; background:linear-gradient(180deg, transparent, var(--paper) 40%); flex-shrink:0; }
   .fab{ width:100%; background:var(--accent); color:var(--accent-ink); border:none; border-radius:12px;
     padding:14px; font-weight:700; font-size:14px; display:flex; align-items:center; justify-content:center; gap:8px;
@@ -444,6 +449,52 @@
     }
   }
 
+  /** すべてのデータ(サブスク+毎月の記録)を1つのJSONファイルとして書き出す。
+   *  Claude Artifact上ではdownloads機能を使い、それが無い環境(GitHub Pagesなど)では
+   *  通常のブラウザのダウンンロードにフォールバックする。 */
+  async function exportBackup(){
+    const payload = { exportedAt: new Date().toISOString(), subs, history };
+    const json = JSON.stringify(payload, null, 2);
+    const filename = `subscript-receipt-backup-${toISO(startOfToday())}.json`;
+
+    let downloadsApi = null;
+    try{
+      if(window.claude && window.claude.use) downloadsApi = await window.claude.use("downloads");
+    }catch(e){}
+
+    if(downloadsApi){
+      try{
+        await downloadsApi.save({ filename, data: json });
+      }catch(err){
+        if(!err || err.code !== "declined") alert("バックアップの保存に失敗しました。もう一度お試しください。");
+      }
+      return;
+    }
+
+    const blob = new Blob([json], {type:"application/json"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  /** バックアップファイル(JSON)を読み込んで、subs/historyの形に間違いないか確認して返す。 */
+  function readBackupFile(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("read failed"));
+      reader.onload = () => {
+        try{
+          const parsed = JSON.parse(reader.result);
+          if(!parsed || !Array.isArray(parsed.subs)) throw new Error("invalid format");
+          resolve(parsed);
+        }catch(e){ reject(e); }
+      };
+      reader.readAsText(file, "UTF-8");
+    });
+  }
+
   /* ---------------- app state ---------------- */
   let subs = loadSubs();
   let history = loadHistory();
@@ -589,7 +640,14 @@
             `).join("")}
           </div>`}
 
-          <div style="height:20px"></div>
+          <div class="backup-row">
+            <button class="backup-link" id="btnExport">バックアップを保存</button>
+            <span class="backup-sep">・</span>
+            <button class="backup-link" id="btnImportPick">復元する</button>
+          </div>
+          <input type="file" id="fImport" accept="application/json" style="display:none">
+
+          <div style="height:8px"></div>
         </div>
       </div>
       <div class="fab-wrap">
@@ -1013,6 +1071,31 @@
       if(cal) cal.addEventListener("click", () => { view = {screen:"calendar", id:null}; render(); });
       const trendBtn = document.getElementById("btnTrend");
       if(trendBtn) trendBtn.addEventListener("click", () => { view = {screen:"trend", id:null}; render(); });
+      const exportBtn = document.getElementById("btnExport");
+      if(exportBtn) exportBtn.addEventListener("click", () => { exportBackup(); });
+      const importPick = document.getElementById("btnImportPick");
+      const fImport = document.getElementById("fImport");
+      if(importPick && fImport) importPick.addEventListener("click", () => fImport.click());
+      if(fImport) fImport.addEventListener("change", async e => {
+        const file = e.target.files[0];
+        if(!file) return;
+        if(!confirm("バックアップを読み込むと、今のデータは上書きされます。よろしいですか?")){
+          e.target.value = ""; return;
+        }
+        try{
+          const parsed = await readBackupFile(file);
+          subs = parsed.subs;
+          history = parsed.history || {};
+          saveSubs(subs);
+          saveHistory(history);
+          recordCurrentMonth();
+          render();
+          alert("復元しました。");
+        }catch(err){
+          alert("バックアップファイルの読み込みに失敗しました。正しいファイルか確認してください。");
+        }
+        e.target.value = "";
+      });
     }
     else if(view.screen === "addEdit"){
       document.getElementById("btnBack").addEventListener("click", () => { draft = null; view = {screen: view.id ? "detail":"home", id: view.id}; render(); });
